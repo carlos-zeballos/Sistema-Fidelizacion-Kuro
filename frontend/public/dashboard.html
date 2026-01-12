@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi Perfil - Sistema de Fidelización</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Swiper CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
+  <!-- QR Code will be loaded from backend as base64 image -->
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    * { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+    body {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #f5f5f5;
+    }
+    .kuro-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .kuro-button {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      color: #1a1a1a;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .kuro-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(212, 175, 55, 0.3);
+    }
+    .stamp-filled {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      border: 2px solid #d4af37;
+    }
+    .promo-image {
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+    .promo-image:hover {
+      transform: scale(1.05);
+    }
+    .swiper-container {
+      padding-bottom: 40px;
+    }
+    .swiper-pagination-bullet {
+      background: #d4af37;
+    }
+    .swiper-button-next,
+    .swiper-button-prev {
+      color: #d4af37;
+    }
+  </style>
+
+  <!-- Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(console.error);
+    }
+  </script>
+
+  <!-- Swiper JS -->
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+  <!-- App logic -->
+  <script type="module">
+    import { getCustomerProfile, subscribeToPush, startLocationTracking, sendLocation } from '/js/customer.js';
+    import { getCustomerToken } from '/js/auth.js';
+
+    let promotionsSwiper = null;
+
+    // ----------------------------
+    // Helpers
+    // ----------------------------
+    function showError(msg) {
+      const el = document.getElementById('errorMessage');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function hideError() {
+      const el = document.getElementById('errorMessage');
+      if (!el) return;
+      el.textContent = '';
+      el.classList.add('hidden');
+    }
+
+    function safeText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value ?? '-';
+    }
+
+    // ----------------------------
+    // Auth check
+    // ----------------------------
+    if (!getCustomerToken()) {
+      window.location.href = '/index.html';
+    }
+
+     // ----------------------------
+     // QR display (from backend base64 image)
+     // ----------------------------
+     function displayQRCode(qrImageData) {
+       const qrContainer = document.getElementById('qrCanvas');
+       if (!qrContainer) {
+         console.error('QR container element not found');
+         return;
+       }
+
+       if (!qrImageData) {
+         showError('No se pudo cargar el QR desde el servidor.');
+         return;
+       }
+
+       try {
+         // Create img element with base64 data
+         qrContainer.innerHTML = '';
+         const img = document.createElement('img');
+         img.src = qrImageData;
+         img.alt = 'QR Code';
+         img.className = 'mx-auto';
+         img.style.maxWidth = '250px';
+         img.style.height = 'auto';
+         qrContainer.appendChild(img);
+         console.log('QR code displayed successfully');
+       } catch (e) {
+         console.error('QR display error:', e);
+         showError('Error al mostrar el QR: ' + (e.message || e));
+       }
+     }
+
+    // ----------------------------
+    // Push status (safe)
+    // ----------------------------
+    async function checkPushStatus() {
+      try {
+        const token = getCustomerToken();
+        if (!token) return; // No token, skip check
+
+        const response = await fetch('/api/push/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          // Silently fail if endpoint doesn't exist or returns error
+          if (response.status === 404 || response.status === 401) {
+            return;
+          }
+          return;
+        }
+
+        const data = await response.json();
+        const subscribed = !!data.subscribed;
+
+        const pushSection = document.getElementById('pushSection');
+        if (pushSection && subscribed) pushSection.classList.add('hidden');
+      } catch (error) {
+        // Silently fail - push status is optional
+        // Don't log to console to avoid noise
+      }
+    }
+
+    // ----------------------------
+    // UI rendering
+    // ----------------------------
+    function displayProfile(profile) {
+      safeText('customerName', profile?.customer?.fullName || 'Cliente');
+      safeText('customerEmail', profile?.customer?.email || '-');
+      safeText('customerPhone', profile?.customer?.phone || '-');
+
+      // Points
+      const points = Number(profile?.loyalty?.points ?? 0);
+      safeText('pointsCount', `${points} puntos`);
+
+      const stampsContainer = document.getElementById('stampsContainer');
+      if (stampsContainer) {
+        stampsContainer.innerHTML = '';
+        // Show stamps based on points (1 point = 1 stamp)
+        const stamps = Math.min(points, 10);
+        for (let i = 0; i < 10; i++) {
+          const stamp = document.createElement('div');
+          stamp.className = `w-10 h-10 rounded-full border-2 flex items-center justify-center ${
+            i < stamps ? 'stamp-filled text-gray-900 font-bold' : 'border-gray-600 bg-transparent'
+          }`;
+          if (i < stamps) stamp.textContent = '✓';
+          stampsContainer.appendChild(stamp);
+        }
+      }
+
+      // Rewards
+      const rewardsContainer = document.getElementById('rewardsContainer');
+      if (rewardsContainer) {
+        rewardsContainer.innerHTML = '';
+        const rewards = Array.isArray(profile?.rewards) ? profile.rewards : [];
+
+        if (rewards.length === 0) {
+          rewardsContainer.innerHTML = '<p class="text-gray-400 text-sm">No tienes recompensas activas</p>';
+        } else {
+          rewards.forEach(reward => {
+            const rewardDiv = document.createElement('div');
+            rewardDiv.className = 'kuro-card rounded-lg p-4 mb-3 border-l-4 border-yellow-400';
+
+            const typeText = reward.type === 'BIRTHDAY' ? '🎂 Cumpleaños' : '🎁 Recompensa de Visita';
+            const validTo = reward.validTo ? new Date(reward.validTo) : null;
+
+            rewardDiv.innerHTML = `
+              <div class="font-semibold text-yellow-400 mb-1">${typeText}</div>
+              <div class="text-sm text-gray-300">
+                ${validTo ? `Válido hasta: ${validTo.toLocaleDateString('es-PE')}` : 'Válido'}
+              </div>
+            `;
+            rewardsContainer.appendChild(rewardDiv);
+          });
+        }
+      }
+    }
+
+    async function loadPromotions() {
+      try {
+        const response = await fetch('/api/promotions');
+        if (!response.ok) throw new Error('No se pudo cargar promociones');
+        const data = await response.json();
+
+        const promotionsContainer = document.getElementById('promotionsContainer');
+        if (!promotionsContainer) return;
+
+        promotionsContainer.innerHTML = '';
+        const promotions = Array.isArray(data?.promotions) ? data.promotions : [];
+
+        if (promotions.length === 0) {
+          promotionsContainer.innerHTML = '<div class="swiper-slide"><p class="text-gray-400 text-sm text-center">No hay promociones activas</p></div>';
+          if (promotionsSwiper) {
+            promotionsSwiper.update();
+          }
+          return;
+        }
+
+        promotions.forEach(promo => {
+          const promoSlide = document.createElement('div');
+          promoSlide.className = 'swiper-slide';
+          promoSlide.onclick = () => showPromoModal(promo);
+
+          if (promo.imageUrl) {
+            promoSlide.innerHTML = `
+              <div class="kuro-card rounded-lg p-3 h-full promo-image">
+                <img src="${promo.imageUrl}" alt="${promo.title}" class="w-full h-40 object-cover rounded-lg mb-2">
+                <div class="font-semibold text-yellow-400 mb-1">${promo.title}</div>
+                <div class="text-sm text-gray-300 line-clamp-2">${promo.description}</div>
+                <div class="text-xs text-gray-400 mt-2">Toca para ver más detalles</div>
+              </div>
+            `;
+          } else {
+            promoSlide.innerHTML = `
+              <div class="kuro-card rounded-lg p-3 h-full promo-image">
+                <div class="font-semibold text-yellow-400 mb-1">${promo.title}</div>
+                <div class="text-sm text-gray-300">${promo.description}</div>
+                <div class="text-xs text-gray-400 mt-2">Toca para ver más detalles</div>
+              </div>
+            `;
+          }
+
+          promotionsContainer.appendChild(promoSlide);
+        });
+
+        // Initialize or update Swiper
+        if (!promotionsSwiper) {
+          promotionsSwiper = new Swiper('#promotionsSwiper', {
+            slidesPerView: 1,
+            spaceBetween: 10,
+            pagination: {
+              el: '.swiper-pagination',
+              clickable: true,
+            },
+            navigation: {
+              nextEl: '.swiper-button-next',
+              prevEl: '.swiper-button-prev',
+            },
+            breakpoints: {
+              640: {
+                slidesPerView: 1.5,
+              },
+              768: {
+                slidesPerView: 2,
+              },
+            },
+          });
+        } else {
+          promotionsSwiper.update();
+        }
+      } catch (error) {
+        console.error('Error loading promotions:', error);
+      }
+    }
+
+    function showPromoModal(promo) {
+      const modal = document.getElementById('promoModal');
+      const modalContent = document.getElementById('promoModalContent');
+      if (!modal || !modalContent) return;
+
+      modalContent.innerHTML = `
+        ${promo.imageUrl ? `<img src="${promo.imageUrl}" alt="${promo.title}" class="w-full h-64 object-cover rounded-lg mb-4">` : ''}
+        <h3 class="text-2xl font-bold text-yellow-400 mb-3">${promo.title}</h3>
+        <p class="text-gray-300 mb-4">${promo.description}</p>
+        ${promo.startAt ? `<p class="text-sm text-gray-400">Válido desde: ${new Date(promo.startAt).toLocaleDateString('es-PE')}</p>` : ''}
+        ${promo.endAt ? `<p class="text-sm text-gray-400">Válido hasta: ${new Date(promo.endAt).toLocaleDateString('es-PE')}</p>` : ''}
+        <button id="closePromoBtn" class="kuro-button w-full py-2 rounded-lg mt-4">Cerrar</button>
+      `;
+
+      modal.classList.remove('hidden');
+
+      const closeBtn = document.getElementById('closePromoBtn');
+      if (closeBtn) closeBtn.addEventListener('click', closePromoModal);
+    }
+
+    function closePromoModal() {
+      const modal = document.getElementById('promoModal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closePromoModal = closePromoModal;
+
+    // ----------------------------
+    // Main: load profile
+    // ----------------------------
+    async function loadProfile() {
+      try {
+        hideError();
+
+        const profile = await getCustomerProfile();
+        displayProfile(profile);
+
+         // Display QR from backend (base64 image)
+         if (profile?.qrImageData) {
+           // Use requestAnimationFrame to ensure DOM is ready
+           requestAnimationFrame(() => {
+             displayQRCode(profile.qrImageData);
+           });
+         } else if (profile?.qrUrl) {
+           // Fallback: if no image data, try to fetch it
+           try {
+             const qrResponse = await fetch('/api/qr/image', {
+               headers: { 'Authorization': `Bearer ${getCustomerToken()}` }
+             });
+             if (qrResponse.ok) {
+               const qrData = await qrResponse.json();
+               if (qrData.qrImageData) {
+                 requestAnimationFrame(() => {
+                   displayQRCode(qrData.qrImageData);
+                 });
+               }
+             }
+           } catch (error) {
+             console.error('Error fetching QR image:', error);
+           }
+         }
+
+        loadPromotions();
+        checkPushStatus();
+        
+        // Auto-refresh points every 30 seconds
+        if (window.pointsRefreshInterval) {
+          clearInterval(window.pointsRefreshInterval);
+        }
+        window.pointsRefreshInterval = setInterval(async () => {
+          try {
+            const updatedProfile = await getCustomerProfile();
+            // Update points display without full reload
+            const pointsCountEl = document.getElementById('pointsCount');
+            if (pointsCountEl && updatedProfile.loyalty) {
+              const points = updatedProfile.loyalty.points || 0;
+              pointsCountEl.textContent = `${points} puntos`;
+              // Update stamps display
+              const stamps = Math.min(points, 10);
+              for (let i = 1; i <= 10; i++) {
+                const stampEl = document.getElementById(`stamp${i}`);
+                if (stampEl) {
+                  if (i <= stamps) {
+                    stampEl.classList.add('stamp-filled');
+                  } else {
+                    stampEl.classList.remove('stamp-filled');
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            // Silently fail - don't interrupt user experience
+            console.warn('Auto-refresh points failed:', error);
+          }
+        }, 30000); // 30 seconds
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        showError('Error al cargar perfil. ¿Tu sesión expiró? Prueba recuperar sesión.');
+      }
+    }
+
+    // ----------------------------
+    // Location tracking
+    // ----------------------------
+    let locationTrackingInterval = null;
+    let locationEnabled = false;
+
+    async function enableLocation() {
+      try {
+        await startLocationTracking();
+        locationEnabled = true;
+        
+        const statusText = document.getElementById('locationStatusText');
+        const enableBtn = document.getElementById('enableLocationBtn');
+        const disableBtn = document.getElementById('disableLocationBtn');
+        
+        if (statusText) statusText.textContent = 'Estado: ✅ Activado';
+        if (enableBtn) enableBtn.classList.add('hidden');
+        if (disableBtn) disableBtn.classList.remove('hidden');
+
+        // Start periodic location updates (every 10 minutes)
+        if (locationTrackingInterval) {
+          clearInterval(locationTrackingInterval);
+        }
+        
+        locationTrackingInterval = setInterval(async () => {
+          try {
+            if (navigator.geolocation && locationEnabled) {
+              navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                  await sendLocation(position.coords.latitude, position.coords.longitude);
+                  console.log('📍 Ubicación actualizada');
+                },
+                (error) => {
+                  console.warn('Error obteniendo ubicación:', error);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
+              );
+            }
+          } catch (error) {
+            console.error('Error en actualización periódica de ubicación:', error);
+          }
+        }, 10 * 60 * 1000); // 10 minutes
+
+        // Initial update after 30 seconds
+        setTimeout(async () => {
+          try {
+            if (navigator.geolocation && locationEnabled) {
+              navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                  await sendLocation(position.coords.latitude, position.coords.longitude);
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 10000 }
+              );
+            }
+          } catch (error) {
+            console.error('Error en actualización inicial:', error);
+          }
+        }, 30000);
+
+        alert('✅ Ubicación activada. Recibirás promociones cuando estés cerca.');
+      } catch (error) {
+        alert('Error al activar ubicación: ' + (error?.message || error));
+      }
+    }
+
+    function disableLocation() {
+      locationEnabled = false;
+      if (locationTrackingInterval) {
+        clearInterval(locationTrackingInterval);
+        locationTrackingInterval = null;
+      }
+
+      const statusText = document.getElementById('locationStatusText');
+      const enableBtn = document.getElementById('enableLocationBtn');
+      const disableBtn = document.getElementById('disableLocationBtn');
+      
+      if (statusText) statusText.textContent = 'Estado: No activado';
+      if (enableBtn) enableBtn.classList.remove('hidden');
+      if (disableBtn) disableBtn.classList.add('hidden');
+    }
+
+    // ----------------------------
+    // DOM ready
+    // ----------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      const enablePushBtn = document.getElementById('enablePushBtn');
+      if (enablePushBtn) {
+        enablePushBtn.addEventListener('click', async () => {
+          try {
+            enablePushBtn.disabled = true;
+            enablePushBtn.textContent = 'Activando...';
+            await subscribeToPush();
+            alert('✅ Notificaciones push activadas');
+            const pushSection = document.getElementById('pushSection');
+            if (pushSection) pushSection.classList.add('hidden');
+          } catch (error) {
+            alert('Error al activar notificaciones: ' + (error?.message || error));
+            enablePushBtn.disabled = false;
+            enablePushBtn.textContent = 'Activar Notificaciones Push';
+          }
+        });
+      }
+
+      const enableLocationBtn = document.getElementById('enableLocationBtn');
+      if (enableLocationBtn) {
+        enableLocationBtn.addEventListener('click', enableLocation);
+      }
+
+      const disableLocationBtn = document.getElementById('disableLocationBtn');
+      if (disableLocationBtn) {
+        disableLocationBtn.addEventListener('click', disableLocation);
+      }
+
+      // close modal on backdrop click
+      const promoModal = document.getElementById('promoModal');
+      if (promoModal) {
+        promoModal.addEventListener('click', (e) => {
+          if (e.target === promoModal) closePromoModal();
+        });
+      }
+
+      loadProfile();
+    });
+
+    // Fallback: load if DOM is already ready
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(loadProfile, 100);
+    }
+  </script>
+</head>
+
+<body class="min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-md">
+
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+        Kuro Fidelización
+      </h1>
+      <p class="text-gray-300 text-lg" id="customerName">Cargando...</p>
+    </div>
+
+    <div id="errorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4"></div>
+
+     <!-- QR Card -->
+     <div class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+       <h2 class="text-xl font-bold text-yellow-400 mb-4 text-center">Mi QR Personal</h2>
+       <div class="text-center">
+         <p class="text-sm text-gray-300 mb-4">Muestra este código al staff para sumar sellos</p>
+         <div class="bg-white p-4 rounded-lg inline-block">
+           <div id="qrCanvas" class="mx-auto"></div>
+         </div>
+       </div>
+     </div>
+
+    <!-- Points Card -->
+    <div class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Mis Puntos</h2>
+      <div class="text-center mb-4">
+        <div class="text-3xl font-bold text-white mb-4">
+          <span id="pointsCount" class="text-yellow-400">0 puntos</span>
+        </div>
+        <div id="stampsContainer" class="flex flex-wrap justify-center gap-3 mb-4"></div>
+        <p class="text-sm text-gray-400">Acumula 10 puntos y obtén una recompensa gratis</p>
+      </div>
+    </div>
+
+    <!-- Rewards -->
+    <div class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">🎁 Recompensas Activas</h2>
+      <div id="rewardsContainer"></div>
+    </div>
+
+    <!-- Promotions -->
+    <div class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">✨ Promociones</h2>
+      <div class="swiper-container" id="promotionsSwiper">
+        <div class="swiper-wrapper" id="promotionsContainer"></div>
+        <div class="swiper-pagination"></div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+      </div>
+    </div>
+
+    <!-- Push Notifications -->
+    <div id="pushSection" class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-3">🔔 Activar Notificaciones</h2>
+      <p class="text-gray-300 text-sm mb-4">
+        Recibe notificaciones sobre promociones especiales y beneficios exclusivos.
+      </p>
+      <button id="enablePushBtn" class="kuro-button w-full py-3 rounded-lg">
+        Activar Notificaciones Push
+      </button>
+      <p class="text-xs text-gray-400 mt-3">
+        En iPhone, agrega esta web a la pantalla de inicio para recibir notificaciones.
+      </p>
+    </div>
+
+    <!-- Location Tracking Section -->
+    <div id="locationSection" class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-3">📍 Activar Ubicación</h2>
+      <p class="text-gray-300 text-sm mb-4">
+        Permite el acceso a tu ubicación para recibir promociones cuando estés cerca del local (dentro de 1 km).
+      </p>
+      <div id="locationStatus" class="mb-4 text-sm">
+        <span id="locationStatusText" class="text-gray-400">Estado: No activado</span>
+      </div>
+      <button id="enableLocationBtn" class="kuro-button w-full py-3 rounded-lg mb-2">
+        Activar Ubicación
+      </button>
+      <button id="disableLocationBtn" class="bg-gray-600 hover:bg-gray-700 text-white w-full py-3 rounded-lg hidden">
+        Desactivar Ubicación
+      </button>
+      <p class="text-xs text-gray-500 mt-2">
+        Tu ubicación se actualiza cada 10-15 minutos mientras la página esté abierta.
+      </p>
+    </div>
+
+    <!-- Customer Info -->
+    <div class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">📋 Información</h2>
+      <div class="space-y-3 text-sm">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Email:</span>
+          <span class="text-white" id="customerEmail">-</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Teléfono:</span>
+          <span class="text-white" id="customerPhone">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recovery Link -->
+    <div class="text-center mb-4">
+      <a href="/recover.html" class="text-yellow-400 text-sm hover:text-yellow-300 underline">Recuperar sesión</a>
+    </div>
+  </div>
+
+  <!-- Promotion Modal -->
+  <div id="promoModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div class="kuro-card rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div id="promoModalContent"></div>
+    </div>
+  </div>
+</body>
+</html>
+```

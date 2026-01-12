@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kuro Fidelización</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <style>
+    * {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    }
+    body {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #f5f5f5;
+      min-height: 100vh;
+    }
+    .kuro-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .kuro-button {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      color: #1a1a1a;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .kuro-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(212, 175, 55, 0.3);
+    }
+    .kuro-button-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #f5f5f5;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .kuro-button-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+  </style>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.log('Service Worker registration failed'));
+      });
+    }
+
+    async function loadRegisterQR() {
+      try {
+        const response = await fetch('/api/public/register-qr');
+        if (!response.ok) {
+          throw new Error('Failed to load QR');
+        }
+        const data = await response.json();
+        
+        // Display QR as image (base64 from backend)
+        const container = document.getElementById('registerQRContainer');
+        if (container && data.qrImageData) {
+          const img = document.createElement('img');
+          img.src = data.qrImageData;
+          img.alt = 'QR Code para registro';
+          img.style.width = '200px';
+          img.style.height = '200px';
+          img.style.display = 'block';
+          img.style.margin = '0 auto';
+          
+          container.innerHTML = '';
+          container.appendChild(img);
+        }
+      } catch (error) {
+        console.error('Error loading register QR:', error);
+        const canvas = document.getElementById('registerQR');
+        if (canvas) {
+          canvas.parentElement.innerHTML = '<p class="text-red-400 text-sm">Error al cargar QR</p>';
+        }
+      }
+    }
+
+    window.addEventListener('load', () => {
+      setTimeout(loadRegisterQR, 500);
+      
+      // Login form handler - wait for DOM to be ready
+      const loginForm = document.getElementById('loginForm');
+      if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          const errorDiv = document.getElementById('loginErrorMessage');
+          if (errorDiv) errorDiv.classList.add('hidden');
+
+          const email = document.getElementById('loginEmail')?.value.trim();
+          const dni = document.getElementById('loginDni')?.value.trim();
+
+          if (!email || !dni) {
+            if (errorDiv) {
+              errorDiv.textContent = 'Email y DNI son requeridos';
+              errorDiv.classList.remove('hidden');
+            }
+            return;
+          }
+
+          try {
+            const response = await fetch('/api/customers/login', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ email, dni })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.message || data.error || 'Error al iniciar sesión');
+            }
+
+            // Save token
+            localStorage.setItem('customerToken', data.token);
+
+            // Redirect to dashboard
+            window.location.href = '/dashboard.html';
+          } catch (error) {
+            if (errorDiv) {
+              errorDiv.textContent = error.message;
+              errorDiv.classList.remove('hidden');
+            }
+          }
+        });
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="container mx-auto px-4 py-8 max-w-md">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-5xl font-bold mb-3 bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+        Kuro
+      </h1>
+      <p class="text-gray-300 text-lg mb-2">Sistema de Fidelización</p>
+      <p class="text-gray-400 text-sm">Nikkei Street Food</p>
+    </div>
+
+    <!-- Register QR Card -->
+    <div class="kuro-card rounded-xl p-6 mb-6 shadow-2xl text-center">
+      <h2 class="text-xl font-bold text-yellow-400 mb-3">📱 Escanea para Registrarte</h2>
+      <p class="text-gray-300 text-sm mb-4">Si ya estás registrado, usa "Mi Perfil"</p>
+      <div class="bg-white p-3 rounded-lg inline-block mb-4">
+        <canvas id="registerQR" style="display: none;"></canvas>
+        <div id="registerQRContainer" class="flex justify-center items-center" style="width: 200px; height: 200px;">
+          <p class="text-gray-400 text-sm">Cargando QR...</p>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400">Escanea este código con tu celular</p>
+    </div>
+
+    <!-- Login Form -->
+    <div class="kuro-card rounded-xl p-6 mb-6 shadow-2xl">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4 text-center">Ingresar</h2>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label for="loginEmail" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+          <input type="email" id="loginEmail" name="email" required
+                 class="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-yellow-400"
+                 placeholder="tu@email.com">
+        </div>
+        <div>
+          <label for="loginDni" class="block text-sm font-medium text-gray-300 mb-2">DNI</label>
+          <input type="text" id="loginDni" name="dni" required
+                 class="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-yellow-400"
+                 placeholder="Tu DNI">
+        </div>
+        <div id="loginErrorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg text-sm"></div>
+        <button type="submit" class="w-full kuro-button py-3 rounded-lg text-lg">
+          Ingresar
+        </button>
+      </form>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="space-y-3">
+      <a href="/register.html" class="block kuro-button-secondary text-center py-4 rounded-xl text-lg">
+        Registrarse
+      </a>
+      <a href="/admin-login.html" class="block kuro-button-secondary text-center py-4 rounded-xl text-lg">
+        Panel Admin
+      </a>
+    </div>
+
+    <!-- Info -->
+    <div class="mt-8 text-center">
+      <p class="text-gray-400 text-sm">
+        Acumula 10 sellos y obtén<br>
+        una recompensa gratis 🎁
+      </p>
+    </div>
+  </div>
+</body>
+</html>

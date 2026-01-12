@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recuperar Sesión - Sistema de Fidelización</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js');
+    }
+  </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-md">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">Recuperar Sesión</h1>
+      <p class="text-gray-600">Ingresa tu email para recibir un código de verificación</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div id="requestOTPForm" class="space-y-4">
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input type="email" id="email" name="email" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500">
+        </div>
+
+        <div id="errorMessage" class="hidden text-red-600 text-sm"></div>
+        <div id="successMessage" class="hidden text-green-600 text-sm"></div>
+
+        <button type="button" id="requestOTPBtn" class="w-full bg-gray-800 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors">
+          Enviar Código
+        </button>
+      </div>
+
+      <div id="verifyOTPForm" class="hidden space-y-4 mt-4">
+        <div>
+          <label for="otpCode" class="block text-sm font-medium text-gray-700 mb-1">Código de Verificación</label>
+          <input type="text" id="otpCode" name="otpCode" maxlength="6" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 text-center text-2xl tracking-widest">
+        </div>
+
+        <button type="button" id="verifyOTPBtn" class="w-full bg-gray-800 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors">
+          Verificar Código
+        </button>
+      </div>
+
+      <div class="mt-4 text-center">
+        <a href="/index.html" class="text-gray-600 text-sm hover:text-gray-800">Volver al inicio</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let userEmail = '';
+
+    document.getElementById('requestOTPBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const errorDiv = document.getElementById('errorMessage');
+      const successDiv = document.getElementById('successMessage');
+      
+      errorDiv.classList.add('hidden');
+      successDiv.classList.add('hidden');
+
+      if (!email || !email.includes('@')) {
+        errorDiv.textContent = 'Email válido es requerido';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/request-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al enviar código');
+        }
+
+        userEmail = email;
+        successDiv.textContent = 'Código enviado a tu email';
+        successDiv.classList.remove('hidden');
+        document.getElementById('requestOTPForm').classList.add('hidden');
+        document.getElementById('verifyOTPForm').classList.remove('hidden');
+      } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('verifyOTPBtn').addEventListener('click', async () => {
+      const code = document.getElementById('otpCode').value.trim();
+      const errorDiv = document.getElementById('errorMessage');
+      const successDiv = document.getElementById('successMessage');
+      
+      errorDiv.classList.add('hidden');
+      successDiv.classList.add('hidden');
+
+      if (!code || code.length !== 6) {
+        errorDiv.textContent = 'Código de 6 dígitos es requerido';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: userEmail, code })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al verificar código');
+        }
+
+        // Save token
+        localStorage.setItem('customerToken', data.token);
+
+        successDiv.textContent = 'Sesión recuperada. Redirigiendo...';
+        successDiv.classList.remove('hidden');
+
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1500);
+      } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
+

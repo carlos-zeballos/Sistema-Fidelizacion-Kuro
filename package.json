@@ -1,0 +1,16 @@
+{
+  "name": "sistema-fidelizacion-kuro",
+  "version": "1.0.0",
+  "description": "Sistema de fidelización para restaurante",
+  "scripts": {
+    "init": "cd backend && node init-db.js",
+    "setup": "cd backend && node init-db.js && node scripts/create-admin.js admin admin123",
+    "dev": "cd backend && npm run dev",
+    "start": "cd backend && npm start",
+    "install:all": "cd backend && npm install"
+  },
+  "keywords": ["loyalty", "restaurant"],
+  "author": "",
+  "license": "ISC"
+}
+

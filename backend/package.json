@@ -1,0 +1,37 @@
+{
+  "name": "loyalty-system-backend",
+  "version": "1.0.0",
+  "description": "Backend for restaurant loyalty system",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "init": "node init-db.js",
+    "setup": "node init-db.js && node scripts/create-admin.js admin admin123",
+    "setup:dev": "npm run init && npm run dev",
+    "migrate:qr-tokens": "node scripts/migrate-add-qr-tokens.js",
+    "migrate:push-fields": "node scripts/migrate-add-push-fields.js",
+    "generate-vapid": "node scripts/generate-vapid-keys.js"
+  },
+  "keywords": [
+    "loyalty",
+    "restaurant",
+    "fidelization"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.9.7",
+    "qrcode": "^1.5.3",
+    "sqlite3": "^5.1.7",
+    "web-push": "^3.6.6"
+  }
+}
+
