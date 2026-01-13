@@ -171,6 +171,7 @@
           <div class="button-group">
             <button id="startScanBtn" class="kuro-button rounded-lg">📷 Iniciar Cámara</button>
             <button id="stopScanBtn" class="bg-gray-600 hover:bg-gray-700 text-white rounded-lg" disabled>⏹️ Detener</button>
+            <button id="switchCameraBtn" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg hidden">🔄 Cambiar Cámara</button>
           </div>
           <div id="cameraStatus" class="text-sm text-gray-400 min-h-[20px]"></div>
         </div>
@@ -204,6 +205,8 @@
     let scanning = false;
     let frameCount = 0;
     let lastDetection = null;
+    let availableCameras = [];
+    let currentCameraIndex = -1;
 
     async function processQRToken(qrToken) {
       try {
@@ -345,6 +348,46 @@
       }
     }
 
+    // Enumerate available cameras
+    async function enumerateCameras() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        availableCameras = devices.filter(device => device.kind === 'videoinput');
+        
+        // Prefer rear cameras (environment)
+        availableCameras.sort((a, b) => {
+          const aIsRear = a.label.toLowerCase().includes('back') || 
+                         a.label.toLowerCase().includes('rear') || 
+                         a.label.toLowerCase().includes('environment');
+          const bIsRear = b.label.toLowerCase().includes('back') || 
+                         b.label.toLowerCase().includes('rear') || 
+                         b.label.toLowerCase().includes('environment');
+          return bIsRear - aIsRear; // Rear cameras first
+        });
+        
+        // Set initial camera to first (should be rear if available)
+        if (availableCameras.length > 0) {
+          currentCameraIndex = 0;
+        }
+        
+        console.log('📹 Cámaras disponibles:', availableCameras.length);
+        availableCameras.forEach((cam, idx) => {
+          console.log(`  ${idx}: ${cam.label || 'Cámara ' + idx} (${cam.deviceId.substring(0, 8)}...)`);
+        });
+        
+        // Show switch camera button if multiple cameras available
+        const switchBtn = document.getElementById('switchCameraBtn');
+        if (availableCameras.length > 1 && switchBtn) {
+          switchBtn.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.warn('⚠️ No se pudieron enumerar cámaras:', error);
+      }
+    }
+    
+    // Initialize camera enumeration on page load
+    enumerateCameras();
+    
     document.getElementById('startScanBtn').addEventListener('click', async () => {
       try {
         hideMessages();
@@ -356,16 +399,51 @@
         }
         
         // Request camera access with mobile-friendly constraints
-        const constraints = {
+        // FORCE rear camera (environment) - no mirror, better for QR scanning
+        let constraints = {
           video: {
-            facingMode: { ideal: 'environment' }, // Prefer rear camera on mobile
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 }
+            facingMode: { ideal: 'environment', exact: false }, // Force rear camera
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 }
           }
         };
         
+        // If we have enumerated cameras and a specific camera is selected, use deviceId
+        if (availableCameras.length > 0 && currentCameraIndex >= 0 && currentCameraIndex < availableCameras.length) {
+          constraints.video.deviceId = { exact: availableCameras[currentCameraIndex].deviceId };
+          console.log('📹 Usando cámara específica:', availableCameras[currentCameraIndex].label);
+        }
+        
+        console.log('📹 Solicitando cámara con constraints:', JSON.stringify(constraints, null, 2));
+        
         // Try to get camera access
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Apply focus mode if supported
+        if (stream && stream.getVideoTracks().length > 0) {
+          const track = stream.getVideoTracks()[0];
+          const capabilities = track.getCapabilities?.();
+          
+          if (capabilities && capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+            try {
+              await track.applyConstraints({
+                advanced: [{ focusMode: 'continuous' }]
+              });
+              console.log('✅ Focus continuo activado');
+            } catch (focusError) {
+              console.warn('⚠️ No se pudo activar focus continuo:', focusError.message);
+            }
+          }
+          
+          // Log camera info
+          const settings = track.getSettings();
+          console.log('📹 Cámara activada:', {
+            facingMode: settings.facingMode,
+            width: settings.width,
+            height: settings.height,
+            deviceId: settings.deviceId
+          });
+        }
         
         if (!stream) {
           throw new Error('No se pudo obtener el stream de la cámara');
@@ -447,7 +525,10 @@
     
     function stopCamera() {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => {
+          track.stop();
+          track.enabled = false;
+        });
         stream = null;
       }
       if (video.srcObject) {
@@ -487,6 +568,28 @@
     document.getElementById('stopScanBtn').addEventListener('click', () => {
       stopCamera();
     });
+    
+    // Switch camera button
+    document.getElementById('switchCameraBtn')?.addEventListener('click', async () => {
+      if (availableCameras.length <= 1) {
+        showError('Solo hay una cámara disponible');
+        return;
+      }
+      
+      // Stop current camera
+      stopCamera();
+      
+      // Switch to next camera
+      currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+      
+      console.log(`🔄 Cambiando a cámara ${currentCameraIndex + 1}/${availableCameras.length}: ${availableCameras[currentCameraIndex].label}`);
+      updateCameraStatus(`Cambiando a cámara ${currentCameraIndex + 1}...`);
+      
+      // Wait a bit then start new camera
+      setTimeout(() => {
+        document.getElementById('startScanBtn').click();
+      }, 500);
+    });
 
     function startQRScanning() {
       // Check if we should continue scanning
@@ -511,6 +614,8 @@
           }
           
           // Draw current video frame to canvas
+          // IMPORTANT: Draw video directly without any transform/mirror
+          // The video element already shows the correct orientation from the camera
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           
           // Get image data
