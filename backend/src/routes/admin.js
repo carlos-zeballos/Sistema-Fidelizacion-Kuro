@@ -540,6 +540,22 @@ function requireAdmin(req, res, next) {
  */
 router.post('/push/send', requireAdmin, async (req, res) => {
   try {
+    // 1) Validar VAPID keys antes de continuar
+    const { getVAPIDPublicKey } = await import('../services/pushNotifications.js');
+    const vapidPublicKey = getVAPIDPublicKey();
+    
+    if (!vapidPublicKey || !process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+      console.error('❌ VAPID keys no configuradas');
+      return res.status(500).json({ 
+        error: 'VAPID keys not configured',
+        message: 'Las claves VAPID no están configuradas. Configura VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY y VAPID_SUBJECT en las variables de entorno.'
+      });
+    }
+
+    if (!process.env.VAPID_SUBJECT) {
+      console.warn('⚠️  VAPID_SUBJECT no configurado, usando valor por defecto');
+    }
+
     const { 
       promotionId, 
       title, 
@@ -565,7 +581,8 @@ router.post('/push/send', requireAdmin, async (req, res) => {
         promotionId: promotion.id,
         title: promotion.push_title || promotion.title,
         message: promotion.push_message || promotion.description,
-        ctaUrl: promotion.cta_url || '/dashboard.html'
+        ctaUrl: promotion.cta_url || '/dashboard.html',
+        image_url: promotion.image_url || null
       };
     } else {
       // Mensaje manual
@@ -631,13 +648,19 @@ router.post('/push/send', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Invalid segment. Must be: all, inactive_36h, inactive_56h, nearby' });
     }
 
+    // 2) Si no hay suscriptores, devolver 200 con mensaje claro
     if (customerIds.length === 0) {
       return res.json({
-        message: 'No customers found for this segment',
+        message: 'No hay clientes suscritos para este segmento',
         sent: 0,
-        total: 0
+        failed: 0,
+        removedInvalid: 0,
+        total: 0,
+        reason: 'no subscribers'
       });
     }
+
+    console.log(`📤 Enviando notificación a ${customerIds.length} clientes (segmento: ${segment})`);
 
     // Enviar notificaciones
     const { sendManualNotification } = await import('../services/pushNotifications.js');
@@ -645,22 +668,37 @@ router.post('/push/send', requireAdmin, async (req, res) => {
 
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
+    const removedCount = results.filter(r => r.removed).length;
+
+    console.log(`✅ Notificaciones enviadas: ${successCount} exitosas, ${failCount} fallidas, ${removedCount} suscripciones eliminadas`);
 
     res.json({
-      message: `Notifications sent: ${successCount} successful, ${failCount} failed`,
+      message: `Notificaciones enviadas: ${successCount} exitosas, ${failCount} fallidas`,
       sent: successCount,
       failed: failCount,
+      removedInvalid: removedCount,
       total: customerIds.length,
-      results
+      results: results.slice(0, 10) // Solo enviar primeros 10 resultados para no saturar la respuesta
     });
   } catch (error) {
     console.error('❌ Error sending manual push:', error);
     console.error('   Error message:', error.message);
     console.error('   Error stack:', error.stack);
+    
+    // Log detallado si es error de web-push
+    if (error.statusCode) {
+      console.error('   Web-push statusCode:', error.statusCode);
+      console.error('   Web-push body:', error.body);
+    }
+    
     res.status(500).json({ 
       error: 'Failed to send push notifications',
       message: error.message || 'Error desconocido al enviar notificaciones',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      webpushError: error.statusCode ? {
+        statusCode: error.statusCode,
+        body: error.body
+      } : undefined
     });
   }
 });

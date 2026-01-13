@@ -83,9 +83,11 @@ function base64ToUint8Array(base64String) {
  * Enviar notificación push a un cliente
  */
 export async function sendPushNotification(customerId, subscription, notification) {
+  let pushSubscription = null;
+  let removed = false;
+  
   try {
     // Convertir keys de base64 a Uint8Array si son strings
-    let pushSubscription = subscription;
     if (typeof subscription.p256dh === 'string' || typeof subscription.auth === 'string') {
       pushSubscription = {
         endpoint: subscription.endpoint,
@@ -111,6 +113,8 @@ export async function sendPushNotification(customerId, subscription, notificatio
             : subscription.keys.auth
         }
       };
+    } else {
+      pushSubscription = subscription;
     }
 
     const payload = JSON.stringify({
@@ -141,11 +145,24 @@ export async function sendPushNotification(customerId, subscription, notificatio
       notification.ctaUrl || null
     ]);
 
-    return { success: true };
+    return { success: true, removed: false };
   } catch (error) {
-    console.error(`❌ Error sending push to customer ${customerId}:`, error);
+    // 1) Logging detallado del error de web-push
+    console.error(`❌ Error sending push to customer ${customerId}:`, error.message);
+    if (error.statusCode) {
+      console.error(`   Web-push statusCode: ${error.statusCode}`);
+      console.error(`   Web-push body:`, error.body);
+      console.error(`   Web-push headers:`, error.headers);
+    }
+    if (error.stack) {
+      console.error(`   Stack:`, error.stack);
+    }
 
     // Registrar error en log
+    const errorMessage = error.statusCode 
+      ? `[${error.statusCode}] ${error.body || error.message}`
+      : error.message || 'Unknown error';
+    
     await db.runQuery(`
       INSERT INTO push_notifications_log 
       (customer_id, promotion_id, notification_type, push_title, push_message, cta_url, success, error_message)
@@ -157,19 +174,39 @@ export async function sendPushNotification(customerId, subscription, notificatio
       notification.title,
       notification.message,
       notification.ctaUrl || null,
-      error.message || 'Unknown error'
+      errorMessage
     ]);
 
-    // Si la suscripción es inválida, desactivarla
+    // 4) Si la suscripción es inválida (410 Gone, 404 Not Found), ELIMINAR de la DB
     if (error.statusCode === 410 || error.statusCode === 404) {
-      await db.runQuery(`
-        UPDATE push_subscriptions 
-        SET active = 0 
-        WHERE customer_id = ? AND endpoint = ?
-      `, [customerId, pushSubscription.endpoint || subscription.endpoint]);
+      const endpoint = pushSubscription?.endpoint || subscription.endpoint;
+      console.log(`🗑️  Eliminando suscripción inválida para cliente ${customerId} (endpoint: ${endpoint?.substring(0, 50)}...)`);
+      
+      try {
+        await db.runQuery(`
+          DELETE FROM push_subscriptions 
+          WHERE customer_id = ? AND endpoint = ?
+        `, [customerId, endpoint]);
+        removed = true;
+        console.log(`✅ Suscripción eliminada para cliente ${customerId}`);
+      } catch (deleteError) {
+        console.error(`❌ Error eliminando suscripción:`, deleteError);
+        // Si no se puede eliminar, al menos desactivarla
+        await db.runQuery(`
+          UPDATE push_subscriptions 
+          SET active = 0 
+          WHERE customer_id = ? AND endpoint = ?
+        `, [customerId, endpoint]);
+      }
     }
 
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: errorMessage,
+      removed: removed,
+      statusCode: error.statusCode,
+      webpushBody: error.body
+    };
   }
 }
 
@@ -432,7 +469,7 @@ export async function sendManualNotification(customerIds, notification) {
       `, [customerId]);
 
       if (!subscription) {
-        results.push({ customerId, success: false, reason: 'No subscription' });
+        results.push({ customerId, success: false, reason: 'No subscription', removed: false });
         continue;
       }
 
@@ -445,9 +482,20 @@ export async function sendManualNotification(customerIds, notification) {
 
       notification.type = 'MANUAL';
       const result = await sendPushNotification(customerId, pushSubscription, notification);
-      results.push({ customerId, success: result.success });
+      results.push({ 
+        customerId, 
+        success: result.success,
+        removed: result.removed || false,
+        error: result.error || null
+      });
     } catch (error) {
-      results.push({ customerId, success: false, error: error.message });
+      console.error(`❌ Error procesando cliente ${customerId}:`, error);
+      results.push({ 
+        customerId, 
+        success: false, 
+        error: error.message,
+        removed: false
+      });
     }
   }
 
