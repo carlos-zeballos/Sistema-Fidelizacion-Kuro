@@ -21,34 +21,36 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CORS configuration for Railway + Hostinger static frontend
-const allowedOrigins = [];
-if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
-  // Also allow www version if base URL doesn't include www
-  if (!process.env.FRONTEND_URL.includes('www.')) {
-    const wwwUrl = process.env.FRONTEND_URL.replace(/^https?:\/\//, 'https://www.');
-    allowedOrigins.push(wwwUrl);
-  }
-}
-// Allow localhost for development
-if (!process.env.FRONTEND_URL || process.env.NODE_ENV !== 'production') {
-  allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500');
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+].filter(Boolean);
+
+// Also add www version if FRONTEND_URL is set and doesn't include www
+if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('www.')) {
+  const wwwUrl = process.env.FRONTEND_URL.replace(/^https?:\/\//, 'https://www.');
+  allowedOrigins.push(wwwUrl);
 }
 
 // Middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
+  origin: (origin, cb) => {
+    // Permite llamadas sin origin (Postman, curl, server-to-server)
+    if (!origin) return cb(null, true);
+
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    console.warn(`CORS blocked for origin: ${origin}`);
+    console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
+    return cb(new Error(`CORS blocked for origin: ${origin}`));
   },
-  credentials: true
+  credentials: true,
 }));
+
+// Important: Enable OPTIONS (preflight) for all routes
+app.options('*', cors());
 app.use(express.json());
 app.use(cookieParser());
 
