@@ -21,6 +21,15 @@ self.addEventListener('install', (event) => {
 
 // Fetch event
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // API requests: Always go to network (Railway backend), bypass cache
+  if (url.pathname.startsWith('/api/') || url.hostname.includes('railway.app')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
+  // Static assets: Cache first, then network
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -32,18 +41,38 @@ self.addEventListener('fetch', (event) => {
 
 // Push notification event
 self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || 'Notificación';
+  console.log('📬 Push notification received:', event);
+  
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    // If data is text, use it as message
+    data = { message: event.data ? event.data.text() : 'Tienes una nueva notificación' };
+  }
+  
+  const title = data.title || data.push_title || 'Kuro Fidelización';
+  const body = data.body || data.message || data.push_message || 'Tienes una nueva notificación';
+  const url = data.url || data.cta_url || data.data?.url || '/dashboard.html';
+  
   const options = {
-    body: data.body || data.message || 'Tienes una nueva notificación',
+    body: body,
     icon: '/favicon.ico',
     badge: '/favicon.ico',
+    image: data.image_url || null, // Show promotion image if available
     data: {
-      url: data.url || data.data?.url || '/dashboard.html'
+      url: url
     },
     vibrate: [200, 100, 200],
     requireInteraction: false,
-    tag: 'kuro-notification'
+    tag: data.promotion_id ? `promo-${data.promotion_id}` : 'kuro-notification',
+    timestamp: Date.now(),
+    actions: url ? [
+      {
+        action: 'open',
+        title: 'Ver más'
+      }
+    ] : []
   };
 
   event.waitUntil(
@@ -53,17 +82,28 @@ self.addEventListener('push', (event) => {
 
 // Notification click event
 self.addEventListener('notificationclick', (event) => {
+  console.log('👆 Notification clicked:', event);
   event.notification.close();
   
-  const urlToOpen = event.notification.data?.url || event.notification.data || '/dashboard.html';
+  const action = event.action || 'open';
+  const urlToOpen = event.notification.data?.url || '/dashboard.html';
   
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Check if there's already a window/tab open with the target URL
+    clients.matchAll({ 
+      type: 'window', 
+      includeUncontrolled: true 
+    }).then((clientList) => {
+      // Check if there's already a window/tab open
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+        // Focus any open window (doesn't need to match exact URL)
+        if ('focus' in client) {
+          return client.focus().then(() => {
+            // Navigate to the notification URL if different
+            if (client.url !== urlToOpen && 'navigate' in client) {
+              return client.navigate(urlToOpen);
+            }
+          });
         }
       }
       // If no window is open, open a new one

@@ -654,8 +654,14 @@ router.post('/push/send', requireAdmin, async (req, res) => {
       results
     });
   } catch (error) {
-    console.error('Error sending manual push:', error);
-    res.status(500).json({ error: 'Failed to send push notifications' });
+    console.error('❌ Error sending manual push:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to send push notifications',
+      message: error.message || 'Error desconocido al enviar notificaciones',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

@@ -67,21 +67,65 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 }
 
 /**
+ * Convertir base64 a Uint8Array
+ */
+function base64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  
+  const rawData = Buffer.from(base64, 'base64');
+  return new Uint8Array(rawData);
+}
+
+/**
  * Enviar notificación push a un cliente
  */
 export async function sendPushNotification(customerId, subscription, notification) {
   try {
+    // Convertir keys de base64 a Uint8Array si son strings
+    let pushSubscription = subscription;
+    if (typeof subscription.p256dh === 'string' || typeof subscription.auth === 'string') {
+      pushSubscription = {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: typeof subscription.p256dh === 'string' 
+            ? base64ToUint8Array(subscription.p256dh)
+            : subscription.p256dh,
+          auth: typeof subscription.auth === 'string'
+            ? base64ToUint8Array(subscription.auth)
+            : subscription.auth
+        }
+      };
+    } else if (subscription.keys) {
+      // Si ya tiene estructura keys, convertir dentro
+      pushSubscription = {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: typeof subscription.keys.p256dh === 'string'
+            ? base64ToUint8Array(subscription.keys.p256dh)
+            : subscription.keys.p256dh,
+          auth: typeof subscription.keys.auth === 'string'
+            ? base64ToUint8Array(subscription.keys.auth)
+            : subscription.keys.auth
+        }
+      };
+    }
+
     const payload = JSON.stringify({
       title: notification.title,
       body: notification.message,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
+      image: notification.image_url || null,
       data: {
-        url: notification.ctaUrl || '/dashboard.html'
+        url: notification.ctaUrl || '/dashboard.html',
+        promotion_id: notification.promotionId || null
       }
     });
 
-    await webpush.sendNotification(subscription, payload);
+    await webpush.sendNotification(pushSubscription, payload);
 
     // Registrar en log
     await db.runQuery(`
@@ -122,7 +166,7 @@ export async function sendPushNotification(customerId, subscription, notificatio
         UPDATE push_subscriptions 
         SET active = 0 
         WHERE customer_id = ? AND endpoint = ?
-      `, [customerId, subscription.endpoint]);
+      `, [customerId, pushSubscription.endpoint || subscription.endpoint]);
     }
 
     return { success: false, error: error.message };
@@ -265,13 +309,11 @@ export async function evaluateNearbyNotification(customerId, lat, lng) {
     const notification = await getNearbyPromotion();
     notification.type = 'NEARBY';
 
-    // Enviar notificación
+    // Enviar notificación (las keys vienen en base64 desde la DB)
     const pushSubscription = {
       endpoint: subscription.endpoint,
-      keys: {
-        p256dh: subscription.p256dh,
-        auth: subscription.auth
-      }
+      p256dh: subscription.p256dh, // base64 string
+      auth: subscription.auth // base64 string
     };
 
     const result = await sendPushNotification(customerId, pushSubscription, notification);
@@ -348,13 +390,11 @@ export async function evaluateMandatoryNotification(customerId) {
     const notification = await getReactivationPromotion();
     notification.type = 'MANDATORY_56H';
 
-    // Enviar notificación
+    // Enviar notificación (las keys vienen en base64 desde la DB)
     const pushSubscription = {
       endpoint: subscription.endpoint,
-      keys: {
-        p256dh: subscription.p256dh,
-        auth: subscription.auth
-      }
+      p256dh: subscription.p256dh, // base64 string
+      auth: subscription.auth // base64 string
     };
 
     const result = await sendPushNotification(customerId, pushSubscription, notification);
@@ -396,12 +436,11 @@ export async function sendManualNotification(customerIds, notification) {
         continue;
       }
 
+      // Las keys vienen en base64 desde la DB, sendPushNotification las convertirá
       const pushSubscription = {
         endpoint: subscription.endpoint,
-        keys: {
-          p256dh: subscription.p256dh,
-          auth: subscription.auth
-        }
+        p256dh: subscription.p256dh, // base64 string
+        auth: subscription.auth // base64 string
       };
 
       notification.type = 'MANUAL';

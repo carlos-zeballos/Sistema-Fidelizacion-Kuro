@@ -14,6 +14,8 @@
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <!-- API Configuration - Load before other scripts -->
+  <script src="/config.js"></script>
 
   <!-- QR Code will be loaded from backend as base64 image -->
 
@@ -68,11 +70,11 @@
 
   <!-- Service Worker -->
   <script>
-    // API Configuration
-    window.API_BASE_URL = window.API_BASE_URL || '';
+    // Helper function for API URLs
     function apiUrl(path) {
+      const API = window.API_BASE_URL || '';
       const cleanPath = path.startsWith('/') ? path : '/' + path;
-      return window.API_BASE_URL + cleanPath;
+      return API + cleanPath;
     }
 
     if ('serviceWorker' in navigator) {
@@ -497,21 +499,118 @@
     }
 
     // ----------------------------
+    // PWA Installation
+    // ----------------------------
+    let deferredPrompt = null;
+    let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    let isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                      window.navigator.standalone || 
+                      document.referrer.includes('android-app://');
+
+    // Detect iOS and show install banner
+    if (isIOS && !isStandalone) {
+      const iosBanner = document.getElementById('iosInstallBanner');
+      if (iosBanner && !localStorage.getItem('iosInstallBannerDismissed')) {
+        iosBanner.classList.remove('hidden');
+        const dismissBtn = document.getElementById('dismissInstallBanner');
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', () => {
+            iosBanner.classList.add('hidden');
+            localStorage.setItem('iosInstallBannerDismissed', 'true');
+          });
+        }
+      }
+    }
+
+    // Detect Android and show install prompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const androidBanner = document.getElementById('androidInstallBanner');
+      if (androidBanner && !localStorage.getItem('androidInstallBannerDismissed')) {
+        androidBanner.classList.remove('hidden');
+      }
+    });
+
+    // Install PWA button (Android)
+    const installPwaBtn = document.getElementById('installPwaBtn');
+    if (installPwaBtn) {
+      installPwaBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) {
+          alert('La instalación no está disponible en este momento. Intenta más tarde.');
+          return;
+        }
+        
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          console.log('✅ PWA instalada');
+          const androidBanner = document.getElementById('androidInstallBanner');
+          if (androidBanner) androidBanner.classList.add('hidden');
+        }
+        
+        deferredPrompt = null;
+      });
+    }
+
+    const dismissAndroidBtn = document.getElementById('dismissAndroidBanner');
+    if (dismissAndroidBtn) {
+      dismissAndroidBtn.addEventListener('click', () => {
+        const androidBanner = document.getElementById('androidInstallBanner');
+        if (androidBanner) {
+          androidBanner.classList.add('hidden');
+          localStorage.setItem('androidInstallBannerDismissed', 'true');
+        }
+      });
+    }
+
+    // ----------------------------
     // DOM ready
     // ----------------------------
     window.addEventListener('DOMContentLoaded', () => {
+      // Register service worker immediately
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log('✅ Service Worker registrado:', reg.scope))
+          .catch(err => console.warn('⚠️ Service Worker no registrado:', err));
+      }
+
       const enablePushBtn = document.getElementById('enablePushBtn');
       if (enablePushBtn) {
         enablePushBtn.addEventListener('click', async () => {
           try {
             enablePushBtn.disabled = true;
             enablePushBtn.textContent = 'Activando...';
+            
+            // Show instructions based on platform
+            const pushInstructions = document.getElementById('pushInstructions');
+            if (pushInstructions) {
+              pushInstructions.classList.remove('hidden');
+              if (isIOS) {
+                document.getElementById('iosInstructions')?.classList.remove('hidden');
+              } else {
+                document.getElementById('androidInstructions')?.classList.remove('hidden');
+              }
+            }
+
             await subscribeToPush();
-            alert('✅ Notificaciones push activadas');
+            
+            alert('✅ Notificaciones push activadas correctamente. Ahora recibirás notificaciones incluso cuando la app esté cerrada.');
             const pushSection = document.getElementById('pushSection');
             if (pushSection) pushSection.classList.add('hidden');
           } catch (error) {
-            alert('Error al activar notificaciones: ' + (error?.message || error));
+            console.error('Error activating push:', error);
+            let errorMsg = 'Error al activar notificaciones: ' + (error?.message || error);
+            
+            // Provide helpful error messages
+            if (error.message?.includes('permission')) {
+              errorMsg = 'Permisos denegados. Por favor, permite las notificaciones en la configuración del navegador.';
+            } else if (isIOS && !isStandalone) {
+              errorMsg = 'En iPhone, primero debes instalar la app en pantalla de inicio (ver instrucciones arriba), luego activa las notificaciones.';
+            }
+            
+            alert(errorMsg);
             enablePushBtn.disabled = false;
             enablePushBtn.textContent = 'Activar Notificaciones Push';
           }
@@ -599,18 +698,53 @@
       </div>
     </div>
 
+    <!-- Install PWA Banner (iOS) -->
+    <div id="iosInstallBanner" class="hidden kuro-card rounded-xl p-4 mb-4 border-2 border-yellow-400">
+      <h3 class="text-lg font-bold text-yellow-400 mb-2">📱 Instalar App en iPhone</h3>
+      <p class="text-gray-300 text-sm mb-3">
+        Para recibir notificaciones incluso cuando la app esté cerrada, instala esta web en tu pantalla de inicio:
+      </p>
+      <ol class="text-xs text-gray-400 space-y-2 mb-3 list-decimal list-inside">
+        <li>Toca el botón <strong>Compartir</strong> <span class="text-yellow-400">□↑</span> en la parte inferior</li>
+        <li>Selecciona <strong>"Agregar a pantalla de inicio"</strong></li>
+        <li>Toca <strong>"Agregar"</strong> para confirmar</li>
+        <li>Luego activa las notificaciones desde la app instalada</li>
+      </ol>
+      <button id="dismissInstallBanner" class="text-xs text-yellow-400 hover:text-yellow-300 underline">
+        Entendido, cerrar
+      </button>
+    </div>
+
+    <!-- Install PWA Banner (Android) -->
+    <div id="androidInstallBanner" class="hidden kuro-card rounded-xl p-4 mb-4 border-2 border-yellow-400">
+      <h3 class="text-lg font-bold text-yellow-400 mb-2">📱 Instalar App</h3>
+      <p class="text-gray-300 text-sm mb-3">
+        Instala esta app para recibir notificaciones incluso cuando esté cerrada.
+      </p>
+      <button id="installPwaBtn" class="kuro-button w-full py-2 rounded-lg mb-2">
+        Instalar App
+      </button>
+      <button id="dismissAndroidBanner" class="text-xs text-yellow-400 hover:text-yellow-300 underline">
+        Ahora no
+      </button>
+    </div>
+
     <!-- Push Notifications -->
     <div id="pushSection" class="kuro-card rounded-xl p-6 mb-4 shadow-2xl">
       <h2 class="text-xl font-bold text-yellow-400 mb-3">🔔 Activar Notificaciones</h2>
       <p class="text-gray-300 text-sm mb-4">
-        Recibe notificaciones sobre promociones especiales y beneficios exclusivos.
+        Recibe notificaciones sobre promociones especiales y beneficios exclusivos, incluso cuando la app esté cerrada.
       </p>
       <button id="enablePushBtn" class="kuro-button w-full py-3 rounded-lg">
         Activar Notificaciones Push
       </button>
-      <p class="text-xs text-gray-400 mt-3">
-        En iPhone, agrega esta web a la pantalla de inicio para recibir notificaciones.
-      </p>
+      <div id="pushInstructions" class="hidden mt-4 p-3 bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg">
+        <p class="text-xs text-yellow-200 font-semibold mb-2">📱 Instrucciones:</p>
+        <ul class="text-xs text-yellow-100 space-y-1 list-disc list-inside">
+          <li id="iosInstructions" class="hidden">En iPhone: Primero instala la app en pantalla de inicio (ver arriba), luego activa notificaciones</li>
+          <li id="androidInstructions" class="hidden">En Android: Si aparece un prompt, toca "Permitir" para activar notificaciones</li>
+        </ul>
+      </div>
     </div>
 
     <!-- Location Tracking Section -->
