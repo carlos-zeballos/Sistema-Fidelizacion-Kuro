@@ -13,6 +13,7 @@ import qrRoutes from './routes/qr.js';
 import publicRoutes from './routes/public.js';
 import pushRoutes from './routes/push.js';
 import db, { DB_PATH } from './config/database.js';
+import bcrypt from 'bcrypt';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,6 +135,25 @@ async function startServer() {
           throw initError;
         }
       }
+    }
+    
+    // Ensure default admin exists
+    try {
+      const adminExists = await db.getOne('SELECT id FROM staff WHERE username = ?', ['admin']);
+      if (!adminExists) {
+        console.log('📊 Creando usuario admin por defecto...');
+        const passwordHash = await bcrypt.hash('admin123', 10);
+        await db.runQuery(`
+          INSERT INTO staff (username, password_hash, role)
+          VALUES (?, ?, 'ADMIN')
+        `, ['admin', passwordHash]);
+        console.log('✅ Usuario admin creado: admin / admin123');
+      } else {
+        console.log('✅ Usuario admin ya existe');
+      }
+    } catch (adminError) {
+      console.warn('⚠️  No se pudo crear/verificar admin:', adminError.message);
+      // No fallar el servidor si no se puede crear admin
     }
     
     // Start server
