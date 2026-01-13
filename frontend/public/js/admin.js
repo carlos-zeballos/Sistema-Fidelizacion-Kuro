@@ -1,6 +1,6 @@
 // Admin-related functions
 
-const API_BASE_URL = '';
+import { API_BASE_URL } from './config.js';
 
 /**
  * Get admin token from localStorage

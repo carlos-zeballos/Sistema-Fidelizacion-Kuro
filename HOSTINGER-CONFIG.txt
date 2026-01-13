@@ -1,0 +1,63 @@
+═══════════════════════════════════════════════════════════════
+  CONFIGURACIÓN RÁPIDA PARA HOSTINGER BUSINESS WEB HOSTING
+═══════════════════════════════════════════════════════════════
+
+📋 CONFIGURACIÓN EN hPanel → Node.js:
+
+┌─────────────────────────────────────────────────────────────┐
+│ Application Name:     kuro-loyalty                          │
+│ Node.js Version:      18.x (o 20.x)                          │
+│ Entry Point:         backend/src/server.js                   │
+│ Start Command:       cd backend && node src/server.js        │
+│ Working Directory:   / (raíz del proyecto)                  │
+│ Port:                (automático - dejar en blanco)         │
+└─────────────────────────────────────────────────────────────┘
+
+🔑 VARIABLES DE ENTORNO (agregar en hPanel):
+
+NODE_ENV=production
+PORT=3000
+APP_BASE_URL=https://kurosushifusion.com
+JWT_SECRET_CUSTOMER=tu-secret-customer-muy-seguro
+JWT_SECRET_ADMIN=tu-secret-admin-muy-seguro
+VAPID_PUBLIC_KEY=tu-vapid-public-key
+VAPID_PRIVATE_KEY=tu-vapid-private-key
+VAPID_SUBJECT=mailto:admin@kurosushifusion.com
+KURO_LAT=-12.0464
+KURO_LNG=-77.0428
+
+📦 BUILD COMMAND (si Hostinger lo pide):
+
+cd backend && npm install --production
+
+📁 ESTRUCTURA DE ARCHIVOS A SUBIR:
+
+public_html/ (o tu carpeta)
+├── package.json          ← Debe estar en la raíz
+├── backend/
+│   ├── src/
+│   │   └── server.js     ← Entry point
+│   ├── package.json
+│   └── (todos los archivos)
+├── frontend/
+│   └── public/
+└── database/
+    └── schema.sql
+
+✅ CHECKLIST:
+
+[ ] Aplicación Node.js creada en hPanel
+[ ] Entry point: backend/src/server.js
+[ ] Variables de entorno configuradas
+[ ] Archivos subidos (backend, frontend, database)
+[ ] Dependencias instaladas
+[ ] Base de datos inicializada
+[ ] Aplicación iniciada
+
+🔍 VERIFICACIÓN:
+
+1. Health: https://kurosushifusion.com/health
+2. Frontend: https://kurosushifusion.com/
+3. API: https://kurosushifusion.com/api/promotions
+
+═══════════════════════════════════════════════════════════════

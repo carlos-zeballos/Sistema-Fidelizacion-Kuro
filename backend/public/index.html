@@ -44,15 +44,6 @@
     }
   </style>
   <script>
-    // API Configuration - Set this to your Railway backend URL in production
-    // For development, leave empty to use relative paths
-    window.API_BASE_URL = window.API_BASE_URL || '';
-    
-    function apiUrl(path) {
-      const cleanPath = path.startsWith('/') ? path : '/' + path;
-      return window.API_BASE_URL + cleanPath;
-    }
-
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js')
@@ -63,7 +54,7 @@
 
     async function loadRegisterQR() {
       try {
-        const response = await fetch(apiUrl('/api/public/register-qr'));
+        const response = await fetch('/api/public/register-qr');
         if (!response.ok) {
           throw new Error('Failed to load QR');
         }
@@ -116,7 +107,7 @@
           }
 
           try {
-            const response = await fetch(apiUrl('/api/customers/login'), {
+            const response = await fetch('/api/customers/login', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'

@@ -11,8 +11,9 @@ const router = express.Router();
  */
 router.get('/register-qr', async (req, res) => {
   try {
-    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-    const registerUrl = `${baseUrl}/register.html`;
+    // Use frontend URL for registration page (Hostinger)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const registerUrl = `${frontendUrl}/register.html`;
     
     // Generate QR as base64 image
     const qrImageData = await generateQRDataURL(registerUrl);

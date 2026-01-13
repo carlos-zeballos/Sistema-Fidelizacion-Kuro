@@ -1,6 +1,7 @@
 // Customer-related functions
 
 import { authenticatedFetch } from './auth.js';
+import { apiUrl } from './config.js';
 
 /**
  * Get customer profile
@@ -86,7 +87,7 @@ export async function subscribeToPush() {
  */
 async function getVapidPublicKey() {
   try {
-    const response = await fetch('/api/push/vapid-key');
+    const response = await fetch(apiUrl('/api/push/vapid-key'));
     if (response.ok) {
       const data = await response.json();
       return data.publicKey;

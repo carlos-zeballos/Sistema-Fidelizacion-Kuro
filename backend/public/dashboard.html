@@ -68,13 +68,6 @@
 
   <!-- Service Worker -->
   <script>
-    // API Configuration
-    window.API_BASE_URL = window.API_BASE_URL || '';
-    function apiUrl(path) {
-      const cleanPath = path.startsWith('/') ? path : '/' + path;
-      return window.API_BASE_URL + cleanPath;
-    }
-
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/service-worker.js').catch(console.error);
     }
@@ -159,7 +152,7 @@
         const token = getCustomerToken();
         if (!token) return; // No token, skip check
 
-        const response = await fetch(apiUrl('/api/push/status'), {
+        const response = await fetch('/api/push/status', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -239,7 +232,7 @@
 
     async function loadPromotions() {
       try {
-        const response = await fetch(apiUrl('/api/promotions'));
+        const response = await fetch('/api/promotions');
         if (!response.ok) throw new Error('No se pudo cargar promociones');
         const data = await response.json();
 
@@ -359,7 +352,7 @@
          } else if (profile?.qrUrl) {
            // Fallback: if no image data, try to fetch it
            try {
-             const qrResponse = await fetch(apiUrl('/api/qr/image'), {
+             const qrResponse = await fetch('/api/qr/image', {
                headers: { 'Authorization': `Bearer ${getCustomerToken()}` }
              });
              if (qrResponse.ok) {
@@ -662,4 +655,3 @@
   </div>
 </body>
 </html>
-```

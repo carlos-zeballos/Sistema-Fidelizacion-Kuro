@@ -1,0 +1,29 @@
+{
+  "name": "Sistema Fidelizacion Kuro",
+  "description": "Sistema de fidelización con QR codes y push notifications",
+  "repository": "https://github.com/carlos-zeballos/Sistema-Fidelizacion-Kuro",
+  "logo": "",
+  "keywords": ["node", "express", "loyalty", "qr"],
+  "image": "",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "NODE_ENV": {
+      "required": true,
+      "value": "production"
+    },
+    "PORT": {
+      "required": true,
+      "value": "3000"
+    }
+  }
+}

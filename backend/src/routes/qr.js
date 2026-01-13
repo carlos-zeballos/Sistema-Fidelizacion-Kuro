@@ -19,7 +19,10 @@ router.get('/image', async (req, res) => {
 
     // If token provided, build URL
     if (req.query.token && !qrData.includes('http')) {
-      const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+      // Use Railway public domain or construct from environment
+      const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : process.env.BACKEND_URL || 'http://localhost:3000';
       qrData = `${baseUrl}/c/${qrData}`;
     }
 

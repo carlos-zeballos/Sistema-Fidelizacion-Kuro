@@ -81,12 +81,6 @@
   </div>
 
   <script>
-    // API Configuration
-    window.API_BASE_URL = window.API_BASE_URL || '';
-    function apiUrl(path) {
-      const cleanPath = path.startsWith('/') ? path : '/' + path;
-      return window.API_BASE_URL + cleanPath;
-    }
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
@@ -103,7 +97,7 @@
       }
 
       try {
-        const response = await fetch(apiUrl('/api/admin/login'), {
+        const response = await fetch('/api/admin/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -130,4 +124,3 @@
   </script>
 </body>
 </html>
-

@@ -55,13 +55,6 @@
   </div>
 
   <script>
-    // API Configuration
-    window.API_BASE_URL = window.API_BASE_URL || '';
-    function apiUrl(path) {
-      const cleanPath = path.startsWith('/') ? path : '/' + path;
-      return window.API_BASE_URL + cleanPath;
-    }
-
     let userEmail = '';
 
     document.getElementById('requestOTPBtn').addEventListener('click', async () => {
@@ -79,7 +72,7 @@
       }
 
       try {
-        const response = await fetch(apiUrl('/api/auth/request-otp'), {
+        const response = await fetch('/api/auth/request-otp', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -119,7 +112,7 @@
       }
 
       try {
-        const response = await fetch(apiUrl('/api/auth/verify-otp'), {
+        const response = await fetch('/api/auth/verify-otp', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -150,4 +143,3 @@
   </script>
 </body>
 </html>
-

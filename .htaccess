@@ -1,0 +1,22 @@
+# Hostinger Configuration for Node.js App
+# Nota: .htaccess solo funciona si Hostinger usa Apache
+# Para Node.js, Hostinger generalmente usa su propio sistema de routing
+
+# Si Hostinger requiere .htaccess para Node.js, usa esta configuración:
+# (Normalmente Hostinger maneja Node.js automáticamente)
+
+# Para archivos estáticos (si Hostinger los sirve directamente)
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Si el archivo existe, servirlo directamente
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Si es una carpeta, servir index.html si existe
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_FILENAME}/index.html -f
+RewriteRule ^ %{REQUEST_FILENAME}/index.html [L]
+
+# Todo lo demás va a Node.js (Hostinger lo maneja automáticamente)
+</IfModule>

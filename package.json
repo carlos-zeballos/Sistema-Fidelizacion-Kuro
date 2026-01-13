@@ -1,16 +1,31 @@
 {
   "name": "sistema-fidelizacion-kuro",
   "version": "1.0.0",
-  "description": "Sistema de fidelización para restaurante",
+  "description": "Sistema de Fidelización para Restaurante KURO - Node.js + Express",
+  "main": "backend/src/server.js",
+  "type": "module",
   "scripts": {
-    "init": "cd backend && node init-db.js",
-    "setup": "cd backend && node init-db.js && node scripts/create-admin.js admin admin123",
+    "start": "cd backend && node src/server.js",
     "dev": "cd backend && npm run dev",
-    "start": "cd backend && npm start",
-    "install:all": "cd backend && npm install"
+    "install-all": "cd backend && npm install",
+    "postinstall": "cd backend && npm install --omit=dev",
+    "build": "cd backend && npm install --omit=dev",
+    "heroku-postbuild": "cd backend && npm install --omit=dev"
   },
-  "keywords": ["loyalty", "restaurant"],
-  "author": "",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "loyalty",
+    "restaurant",
+    "fidelization",
+    "qr",
+    "push-notifications",
+    "nodejs",
+    "express",
+    "sqlite"
+  ],
+  "author": "Carlos Zeballos",
   "license": "ISC"
 }
-

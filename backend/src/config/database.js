@@ -7,19 +7,21 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Get project root (backend/src/config -> backend -> project root)
-const projectRoot = path.resolve(__dirname, '../../..');
+// RAILWAY COMPATIBLE: Use process.cwd() for absolute path
+// In Railway, the working directory is the project root (where package.json is)
+// So database/ is at backend/database/ relative to project root
+const backendRoot = process.cwd();
+const dbDir = path.resolve(backendRoot, 'database');
 
 // UNIFIED DATABASE PATH - Used by ALL scripts
-export const DB_PATH = path.resolve(projectRoot, 'database', 'loyalty.db');
-export const SCHEMA_PATH = path.resolve(projectRoot, 'database', 'schema.sql');
+export const DB_PATH = path.resolve(dbDir, 'loyalty.db');
+export const SCHEMA_PATH = path.resolve(dbDir, 'schema.sql');
 
 // Log the actual path for verification
 console.log('📁 DB_PATH:', DB_PATH);
 console.log('📁 SCHEMA_PATH:', SCHEMA_PATH);
 
-// Ensure database directory exists
-const dbDir = path.dirname(DB_PATH);
+// Ensure database directory exists (already defined above, but ensure it exists)
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
   console.log('📁 Created database directory:', dbDir);

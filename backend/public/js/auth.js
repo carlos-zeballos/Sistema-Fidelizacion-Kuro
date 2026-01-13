@@ -1,6 +1,6 @@
 // Authentication utilities
 
-import { API_BASE_URL } from './config.js';
+const API_BASE_URL = '';
 
 /**
  * Get customer token from localStorage or cookie
@@ -73,5 +73,4 @@ export async function authenticatedFetch(url, options = {}) {
 
   return response;
 }
-
 

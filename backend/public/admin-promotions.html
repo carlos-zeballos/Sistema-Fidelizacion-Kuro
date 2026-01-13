@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestionar Promociones - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <style>
+    * { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+    body {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #f5f5f5;
+    }
+    .kuro-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .kuro-button {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      color: #1a1a1a;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .kuro-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(212, 175, 55, 0.3);
+    }
+    .kuro-input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f5f5f5;
+    }
+    .kuro-input:focus {
+      outline: none;
+      border-color: #d4af37;
+      box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+    }
+    .kuro-textarea {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f5f5f5;
+      resize: vertical;
+    }
+    .kuro-textarea:focus {
+      outline: none;
+      border-color: #d4af37;
+      box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+          Gestionar Promociones
+        </h1>
+        <a href="/admin-dashboard.html" class="text-yellow-400 text-sm hover:text-yellow-300 mt-2 inline-block">
+          ← Volver al Dashboard
+        </a>
+      </div>
+      <div class="flex gap-2">
+        <button id="newPromotionBtn" class="kuro-button px-4 py-2 rounded-lg text-sm">
+          + Nueva Promoción
+        </button>
+        <button id="logoutBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm">
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+
+    <div id="errorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4"></div>
+    <div id="successMessage" class="hidden bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg mb-4"></div>
+
+    <!-- Promotions List -->
+    <div class="kuro-card rounded-xl p-6 mb-6">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Promociones Activas</h2>
+      <div id="promotionsList" class="space-y-4">
+        <p class="text-gray-400 text-center py-8">Cargando promociones...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Crear/Editar Promoción -->
+  <div id="promotionModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div class="kuro-card rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold text-yellow-400" id="modalTitle">Nueva Promoción</h2>
+        <button id="closeModalBtn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      </div>
+
+      <form id="promotionForm">
+        <input type="hidden" id="promotionId" value="">
+
+        <!-- Título y Descripción -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-400 mb-2">Título *</label>
+          <input type="text" id="title" required
+                 class="kuro-input w-full px-4 py-3 rounded-lg"
+                 placeholder="Ej: Descuento del 20%">
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-400 mb-2">Descripción *</label>
+          <textarea id="description" rows="3" required
+                    class="kuro-textarea w-full px-4 py-3 rounded-lg"
+                    placeholder="Descripción detallada de la promoción"></textarea>
+        </div>
+
+        <!-- Imagen -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-400 mb-2">URL de Imagen</label>
+          <input type="url" id="imageUrl"
+                 class="kuro-input w-full px-4 py-3 rounded-lg"
+                 placeholder="https://ejemplo.com/imagen.jpg">
+          <p class="text-xs text-gray-400 mt-1">URL de la imagen para el carrusel</p>
+        </div>
+
+        <!-- Push Notification Fields -->
+        <div class="mb-4 p-4 bg-gray-800 rounded-lg">
+          <h3 class="text-lg font-semibold text-yellow-400 mb-3">📢 Configuración de Notificación Push</h3>
+          
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-yellow-400 mb-2">Título de Notificación</label>
+            <input type="text" id="pushTitle"
+                   class="kuro-input w-full px-4 py-3 rounded-lg"
+                   placeholder="Ej: ¡Oferta Especial!">
+            <p class="text-xs text-gray-400 mt-1">Si está vacío, se usará el título de la promoción</p>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-yellow-400 mb-2">Mensaje de Notificación</label>
+            <textarea id="pushMessage" rows="2"
+                      class="kuro-textarea w-full px-4 py-3 rounded-lg"
+                      placeholder="Mensaje corto para la notificación push"></textarea>
+            <p class="text-xs text-gray-400 mt-1">Si está vacío, se usará la descripción</p>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-yellow-400 mb-2">URL al hacer clic</label>
+            <input type="text" id="ctaUrl"
+                   class="kuro-input w-full px-4 py-3 rounded-lg"
+                   placeholder="/dashboard.html"
+                   value="/dashboard.html">
+            <p class="text-xs text-gray-400 mt-1">URL a la que se dirigirá al hacer clic en la notificación</p>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-yellow-400 mb-2">Audiencia</label>
+            <select id="audience" class="kuro-input w-full px-4 py-3 rounded-lg">
+              <option value="ALL">Todos los clientes</option>
+              <option value="NEARBY">Clientes cercanos (prioridad para notificaciones de cercanía)</option>
+              <option value="REACTIVATION">Reactivación (prioridad para notificaciones de inactividad)</option>
+            </select>
+            <p class="text-xs text-gray-400 mt-1">Define el público objetivo de esta promoción</p>
+          </div>
+        </div>
+
+        <!-- Fechas -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-yellow-400 mb-2">Fecha Inicio (opcional)</label>
+            <input type="datetime-local" id="startAt"
+                   class="kuro-input w-full px-4 py-3 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-yellow-400 mb-2">Fecha Fin (opcional)</label>
+            <input type="datetime-local" id="endAt"
+                   class="kuro-input w-full px-4 py-3 rounded-lg">
+          </div>
+        </div>
+
+        <!-- Estado -->
+        <div class="mb-6">
+          <label class="flex items-center">
+            <input type="checkbox" id="active" checked
+                   class="mr-2 w-4 h-4">
+            <span class="text-yellow-400">Promoción activa</span>
+          </label>
+        </div>
+
+        <!-- Botones -->
+        <div class="flex gap-2">
+          <button type="submit" class="kuro-button flex-1 py-3 rounded-lg">
+            Guardar Promoción
+          </button>
+          <button type="button" id="cancelBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getAdminToken, logout } from '/js/admin.js';
+    import { getPromotions, createPromotion, updatePromotion, deletePromotion } from '/js/admin.js';
+
+    if (!getAdminToken()) {
+      window.location.href = '/admin-login.html';
+    }
+
+    let promotions = [];
+    let editingId = null;
+
+    function showError(msg) {
+      const el = document.getElementById('errorMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    function showSuccess(msg) {
+      const el = document.getElementById('successMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    function openModal(promotion = null) {
+      editingId = promotion ? promotion.id : null;
+      const modal = document.getElementById('promotionModal');
+      const form = document.getElementById('promotionForm');
+      const title = document.getElementById('modalTitle');
+
+      if (promotion) {
+        title.textContent = 'Editar Promoción';
+        document.getElementById('promotionId').value = promotion.id;
+        document.getElementById('title').value = promotion.title || '';
+        document.getElementById('description').value = promotion.description || '';
+        document.getElementById('imageUrl').value = promotion.imageUrl || '';
+        document.getElementById('pushTitle').value = promotion.pushTitle || '';
+        document.getElementById('pushMessage').value = promotion.pushMessage || '';
+        document.getElementById('ctaUrl').value = promotion.ctaUrl || '/dashboard.html';
+        document.getElementById('audience').value = promotion.audience || 'ALL';
+        document.getElementById('active').checked = promotion.active !== false;
+        
+        // Convertir fechas ISO a datetime-local
+        if (promotion.startAt) {
+          const startDate = new Date(promotion.startAt);
+          document.getElementById('startAt').value = startDate.toISOString().slice(0, 16);
+        } else {
+          document.getElementById('startAt').value = '';
+        }
+        
+        if (promotion.endAt) {
+          const endDate = new Date(promotion.endAt);
+          document.getElementById('endAt').value = endDate.toISOString().slice(0, 16);
+        } else {
+          document.getElementById('endAt').value = '';
+        }
+      } else {
+        title.textContent = 'Nueva Promoción';
+        form.reset();
+        document.getElementById('promotionId').value = '';
+        document.getElementById('active').checked = true;
+        document.getElementById('ctaUrl').value = '/dashboard.html';
+        document.getElementById('audience').value = 'ALL';
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('promotionModal').classList.add('hidden');
+      editingId = null;
+    }
+
+    async function loadPromotions() {
+      try {
+        const data = await getPromotions();
+        promotions = data.promotions || [];
+        renderPromotions();
+      } catch (error) {
+        console.error('Error loading promotions:', error);
+        showError('Error al cargar promociones');
+      }
+    }
+
+    function renderPromotions() {
+      const container = document.getElementById('promotionsList');
+      container.innerHTML = '';
+
+      if (promotions.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12">
+            <div class="text-6xl mb-4">🎁</div>
+            <p class="text-gray-400 text-lg mb-4">No hay promociones aún</p>
+            <button onclick="document.getElementById('newPromotionBtn').click()" 
+                    class="kuro-button px-6 py-3 rounded-lg">
+              Crear Primera Promoción
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      promotions.forEach(promo => {
+        const div = document.createElement('div');
+        div.className = 'kuro-card rounded-lg p-5 bg-gray-800 hover:bg-gray-750 transition-colors';
+        
+        const statusBadge = promo.active 
+          ? '<span class="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold">✅ Activa</span>'
+          : '<span class="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-semibold">❌ Inactiva</span>';
+        
+        const audienceBadge = promo.audience === 'NEARBY' 
+          ? '<span class="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold ml-2">📍 Cercanía</span>'
+          : promo.audience === 'REACTIVATION'
+          ? '<span class="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold ml-2">🔄 Reactivación</span>'
+          : '<span class="bg-gray-600 text-white px-3 py-1 rounded-full text-xs font-semibold ml-2">🌐 Todos</span>';
+
+        const pushBadge = promo.pushTitle || promo.pushMessage
+          ? '<span class="bg-yellow-600 text-white px-3 py-1 rounded-full text-xs font-semibold ml-2">📢 Con Push</span>'
+          : '';
+
+        const hasImage = promo.imageUrl && promo.imageUrl.trim() !== '';
+
+        div.innerHTML = `
+          <div class="flex flex-col md:flex-row gap-4">
+            ${hasImage ? `
+              <div class="flex-shrink-0">
+                <img src="${promo.imageUrl}" alt="${promo.title}" 
+                     class="w-32 h-32 object-cover rounded-lg border-2 border-yellow-400"
+                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'128\' height=\'128\'%3E%3Crect fill=\'%23333\' width=\'128\' height=\'128\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3ESin imagen%3C/text%3E%3C/svg%3E'">
+              </div>
+            ` : `
+              <div class="flex-shrink-0 w-32 h-32 bg-gray-700 rounded-lg flex items-center justify-center">
+                <span class="text-4xl">🎁</span>
+              </div>
+            `}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex-1 min-w-0">
+                  <h3 class="text-xl font-bold text-yellow-400 mb-1 break-words">${promo.title}</h3>
+                  <p class="text-gray-300 text-sm mt-1 line-clamp-2 break-words">${promo.description}</p>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2 mb-3">
+                ${statusBadge}
+                ${audienceBadge}
+                ${pushBadge}
+              </div>
+              <div class="text-xs text-gray-400 space-y-1">
+                ${promo.startAt ? `<div>📅 Inicio: ${new Date(promo.startAt).toLocaleDateString('es-PE', { year: 'numeric', month: 'short', day: 'numeric' })}</div>` : '<div>📅 Sin fecha de inicio</div>'}
+                ${promo.endAt ? `<div>📅 Fin: ${new Date(promo.endAt).toLocaleDateString('es-PE', { year: 'numeric', month: 'short', day: 'numeric' })}</div>` : '<div>📅 Sin fecha de fin</div>'}
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 md:min-w-[120px]">
+              <button onclick="editPromotion(${promo.id})" 
+                      class="kuro-button px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105">
+                ✏️ Editar
+              </button>
+              <button onclick="togglePromotion(${promo.id}, ${promo.active})" 
+                      class="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 ${promo.active ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'}">
+                ${promo.active ? '⏸️ Desactivar' : '▶️ Activar'}
+              </button>
+              <button onclick="deletePromo(${promo.id})" 
+                      class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105">
+                🗑️ Eliminar
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // Event listeners
+    document.getElementById('newPromotionBtn').addEventListener('click', () => openModal());
+    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+    document.getElementById('cancelBtn').addEventListener('click', closeModal);
+    document.getElementById('logoutBtn').addEventListener('click', () => logout());
+
+    // Close modal on backdrop click
+    document.getElementById('promotionModal').addEventListener('click', (e) => {
+      if (e.target.id === 'promotionModal') closeModal();
+    });
+
+    // Form submission
+    document.getElementById('promotionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      
+      try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Guardando...';
+        
+        // Validar campos requeridos
+        const title = document.getElementById('title').value.trim();
+        const description = document.getElementById('description').value.trim();
+        
+        if (!title || !description) {
+          throw new Error('Título y descripción son requeridos');
+        }
+        
+        // Preparar datos según el formato del backend
+        const formData = {
+          title: title,
+          description: description,
+          imageUrl: document.getElementById('imageUrl').value.trim() || null,
+          pushTitle: document.getElementById('pushTitle').value.trim() || null,
+          pushMessage: document.getElementById('pushMessage').value.trim() || null,
+          ctaUrl: document.getElementById('ctaUrl').value.trim() || null,
+          audience: document.getElementById('audience').value,
+          startAt: document.getElementById('startAt').value || null,
+          endAt: document.getElementById('endAt').value || null,
+          active: document.getElementById('active').checked
+        };
+
+        // Convertir fechas a formato ISO si están presentes
+        if (formData.startAt) {
+          formData.startAt = new Date(formData.startAt).toISOString();
+        }
+        if (formData.endAt) {
+          formData.endAt = new Date(formData.endAt).toISOString();
+        }
+
+        if (editingId) {
+          await updatePromotion(editingId, formData);
+          showSuccess('✅ Promoción actualizada exitosamente');
+        } else {
+          await createPromotion(formData);
+          showSuccess('✅ Promoción creada exitosamente');
+        }
+        
+        closeModal();
+        loadPromotions();
+      } catch (error) {
+        console.error('Error saving promotion:', error);
+        showError(error.message || 'Error al guardar promoción. Verifica la consola para más detalles.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    });
+
+    // Global functions for inline onclick handlers
+    window.editPromotion = (id) => {
+      const promo = promotions.find(p => p.id === id);
+      if (promo) openModal(promo);
+    };
+
+    window.togglePromotion = async (id, currentActive) => {
+      try {
+        await updatePromotion(id, { active: !currentActive });
+        showSuccess(`Promoción ${!currentActive ? 'activada' : 'desactivada'}`);
+        loadPromotions();
+      } catch (error) {
+        showError(error.message || 'Error al cambiar estado');
+      }
+    };
+
+    window.deletePromo = async (id) => {
+      if (!confirm('¿Estás seguro de eliminar esta promoción?')) return;
+      
+      try {
+        await deletePromotion(id);
+        showSuccess('Promoción eliminada');
+        loadPromotions();
+      } catch (error) {
+        showError(error.message || 'Error al eliminar promoción');
+      }
+    };
+
+    // Load promotions on page load
+    loadPromotions();
+  </script>
+</body>
+</html>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Kuro Fidelización</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+    body {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #f5f5f5;
+    }
+    .kuro-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .kuro-button {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      color: #1a1a1a;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .kuro-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(212, 175, 55, 0.3);
+    }
+    .kuro-input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f5f5f5;
+    }
+    .kuro-input:focus {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #d4af37;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+        Admin Dashboard
+      </h1>
+      <button id="logoutBtn" class="kuro-button px-4 py-2 rounded-lg text-sm">Cerrar Sesión</button>
+    </div>
+
+    <div id="errorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4"></div>
+    <div id="successMessage" class="hidden bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg mb-4"></div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div class="kuro-card rounded-xl p-6">
+        <h3 class="text-yellow-400 font-semibold mb-2">Total Clientes</h3>
+        <p class="text-3xl font-bold" id="totalCustomers">-</p>
+      </div>
+      <div class="kuro-card rounded-xl p-6">
+        <h3 class="text-yellow-400 font-semibold mb-2">Puntos Hoy</h3>
+        <p class="text-3xl font-bold" id="pointsToday">-</p>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <a href="/admin-scan.html" class="kuro-card rounded-xl p-6 text-center kuro-button block">
+        <div class="text-4xl mb-2">📷</div>
+        <div class="font-semibold">Escanear QR</div>
+      </a>
+      <a href="/admin-promotions.html" class="kuro-card rounded-xl p-6 text-center kuro-button block">
+        <div class="text-4xl mb-2">🎁</div>
+        <div class="font-semibold">Gestionar Promociones</div>
+      </a>
+      <a href="/admin-notifications.html" class="kuro-card rounded-xl p-6 text-center kuro-button block">
+        <div class="text-4xl mb-2">📢</div>
+        <div class="font-semibold">Enviar Notificaciones</div>
+      </a>
+      <button id="viewCustomersBtn" class="kuro-card rounded-xl p-6 text-center kuro-button block">
+        <div class="text-4xl mb-2">👥</div>
+        <div class="font-semibold">Ver Clientes</div>
+      </button>
+    </div>
+
+    <!-- Recent Customers -->
+    <div class="kuro-card rounded-xl p-6 mb-8">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Clientes Recientes</h2>
+      <div id="recentCustomers" class="space-y-2"></div>
+    </div>
+
+    <!-- Promotions Section -->
+    <div id="promotionsSection" class="hidden kuro-card rounded-xl p-6 mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-yellow-400">Promociones</h2>
+        <button id="newPromotionBtn" class="kuro-button px-4 py-2 rounded-lg text-sm">Nueva Promoción</button>
+      </div>
+      <div id="promotionsList" class="space-y-2"></div>
+    </div>
+
+    <!-- Customers List Section -->
+    <div id="customersSection" class="hidden kuro-card rounded-xl p-6 mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-yellow-400">Clientes</h2>
+        <input type="text" id="searchCustomers" placeholder="Buscar por DNI, email o nombre..."
+               class="kuro-input px-4 py-2 rounded-lg w-64">
+      </div>
+      <div id="customersList" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { 
+      getAdminToken, 
+      removeAdminToken, 
+      adminAuthenticatedFetch,
+      getDashboardStats,
+      getCustomers,
+      getPromotions,
+      createPromotion,
+      updatePromotion,
+      deletePromotion
+    } from '/js/admin.js';
+
+    function logout() {
+      removeAdminToken();
+      window.location.href = '/admin-login.html';
+    }
+
+    if (!getAdminToken()) {
+      window.location.href = '/admin-login.html';
+    }
+
+    async function loadDashboard() {
+      try {
+        const data = await getDashboardStats();
+        
+        document.getElementById('totalCustomers').textContent = data.stats.totalCustomers || 0;
+        document.getElementById('pointsToday').textContent = data.stats.pointsToday || 0;
+
+        // Recent customers
+        const recentContainer = document.getElementById('recentCustomers');
+        recentContainer.innerHTML = '';
+        if (data.recentCustomers && data.recentCustomers.length > 0) {
+          data.recentCustomers.forEach(customer => {
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center p-3 bg-gray-800 rounded-lg';
+            div.innerHTML = `
+              <div>
+                <div class="font-semibold">${customer.fullName}</div>
+                <div class="text-sm text-gray-400">${customer.email} • ${customer.points || 0} puntos</div>
+              </div>
+            `;
+            recentContainer.appendChild(div);
+          });
+        } else {
+          recentContainer.innerHTML = '<p class="text-gray-400">No hay clientes recientes</p>';
+        }
+      } catch (error) {
+        console.error('Error loading dashboard:', error);
+        showError('Error al cargar el dashboard');
+      }
+    }
+
+    async function loadPromotions() {
+      try {
+        const data = await getPromotions();
+        const container = document.getElementById('promotionsList');
+        container.innerHTML = '';
+
+        if (data.promotions && data.promotions.length > 0) {
+          data.promotions.forEach(promo => {
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center p-4 bg-gray-800 rounded-lg';
+            div.innerHTML = `
+              <div class="flex-1">
+                <div class="font-semibold">${promo.title}</div>
+                <div class="text-sm text-gray-400">${promo.description}</div>
+                <div class="text-xs text-gray-500 mt-1">
+                  ${promo.active ? '✅ Activa' : '❌ Inactiva'} • 
+                  Audiencia: ${promo.audience || 'ALL'} • 
+                  ${promo.pushTitle ? '📢 Con push' : 'Sin push'}
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="editPromotion(${promo.id})" class="kuro-button px-3 py-1 rounded text-sm">Editar</button>
+                <button onclick="togglePromotion(${promo.id}, ${promo.active})" class="px-3 py-1 rounded text-sm ${promo.active ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'}">${promo.active ? 'Desactivar' : 'Activar'}</button>
+                <button onclick="deletePromotion(${promo.id})" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">Eliminar</button>
+              </div>
+            `;
+            container.appendChild(div);
+          });
+        } else {
+          container.innerHTML = '<p class="text-gray-400">No hay promociones</p>';
+        }
+      } catch (error) {
+        console.error('Error loading promotions:', error);
+        showError('Error al cargar promociones');
+      }
+    }
+
+    async function loadCustomers(search = '') {
+      try {
+        const data = await getCustomers(search);
+        const container = document.getElementById('customersList');
+        container.innerHTML = '';
+
+        if (data.customers && data.customers.length > 0) {
+          data.customers.forEach(customer => {
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center p-4 bg-gray-800 rounded-lg';
+            div.innerHTML = `
+              <div>
+                <div class="font-semibold">${customer.fullName}</div>
+                <div class="text-sm text-gray-400">${customer.email} • DNI: ${customer.dni}</div>
+                <div class="text-xs text-gray-500">${customer.points || 0} puntos</div>
+              </div>
+            `;
+            container.appendChild(div);
+          });
+        } else {
+          container.innerHTML = '<p class="text-gray-400">No se encontraron clientes</p>';
+        }
+      } catch (error) {
+        console.error('Error loading customers:', error);
+        showError('Error al cargar clientes');
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    // Event listeners
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    
+    // Promotions management moved to admin-promotions.html
+
+    document.getElementById('viewCustomersBtn').addEventListener('click', () => {
+      const section = document.getElementById('customersSection');
+      section.classList.toggle('hidden');
+      if (!section.classList.contains('hidden')) {
+        loadCustomers();
+      }
+    });
+
+    document.getElementById('searchCustomers').addEventListener('input', (e) => {
+      loadCustomers(e.target.value);
+    });
+
+    // Global functions for inline onclick handlers
+    window.editPromotion = async function(id) {
+      const data = await getPromotions();
+      const promo = data.promotions.find(p => p.id === id);
+      if (!promo) return;
+      
+      const title = prompt('Título:', promo.title);
+      if (title === null) return;
+      
+      const description = prompt('Descripción:', promo.description);
+      if (description === null) return;
+      
+      const imageUrl = prompt('URL de imagen (opcional):', promo.imageUrl || '');
+      const pushTitle = prompt('Título para notificación push (opcional):', promo.pushTitle || '');
+      const pushMessage = prompt('Mensaje para notificación push (opcional):', promo.pushMessage || '');
+      const ctaUrl = prompt('URL al hacer clic (opcional):', promo.ctaUrl || '/dashboard.html');
+      
+      let audience = prompt('Audiencia (ALL, NEARBY, REACTIVATION):', promo.audience || 'ALL');
+      if (!['ALL', 'NEARBY', 'REACTIVATION'].includes(audience)) {
+        audience = 'ALL';
+      }
+      
+      const startAt = prompt('Fecha inicio (YYYY-MM-DD, opcional):', promo.startAt || '');
+      const endAt = prompt('Fecha fin (YYYY-MM-DD, opcional):', promo.endAt || '');
+      
+      try {
+        await updatePromotion(id, { 
+          title, 
+          description, 
+          imageUrl: imageUrl || null,
+          pushTitle: pushTitle || null,
+          pushMessage: pushMessage || null,
+          ctaUrl: ctaUrl || null,
+          audience: audience || 'ALL',
+          startAt: startAt || null, 
+          endAt: endAt || null 
+        });
+        showSuccess('Promoción actualizada');
+        loadPromotions();
+      } catch (error) {
+        showError(error.message);
+      }
+    };
+
+    window.togglePromotion = async function(id, currentActive) {
+      try {
+        await updatePromotion(id, { active: !currentActive });
+        showSuccess(`Promoción ${!currentActive ? 'activada' : 'desactivada'}`);
+        loadPromotions();
+      } catch (error) {
+        showError(error.message);
+      }
+    };
+
+    window.deletePromotion = async function(id) {
+      if (!confirm('¿Estás seguro de eliminar esta promoción?')) return;
+      
+      try {
+        await deletePromotion(id);
+        showSuccess('Promoción eliminada');
+        loadPromotions();
+      } catch (error) {
+        showError(error.message);
+      }
+    };
+
+    // New promotion button
+    document.getElementById('newPromotionBtn').addEventListener('click', async () => {
+      const title = prompt('Título de la promoción:');
+      if (!title) return;
+      
+      const description = prompt('Descripción:');
+      if (!description) return;
+      
+      const imageUrl = prompt('URL de imagen (opcional):', '');
+      const pushTitle = prompt('Título para notificación push (opcional, usa título si está vacío):', '');
+      const pushMessage = prompt('Mensaje para notificación push (opcional, usa descripción si está vacío):', '');
+      const ctaUrl = prompt('URL al hacer clic en notificación (opcional, default: /dashboard.html):', '/dashboard.html');
+      
+      let audience = prompt('Audiencia (ALL, NEARBY, REACTIVATION) - default: ALL:', 'ALL');
+      if (!['ALL', 'NEARBY', 'REACTIVATION'].includes(audience)) {
+        audience = 'ALL';
+      }
+      
+      const startAt = prompt('Fecha inicio (YYYY-MM-DD, opcional):', '');
+      const endAt = prompt('Fecha fin (YYYY-MM-DD, opcional):', '');
+      
+      try {
+        await createPromotion({
+          title,
+          description,
+          imageUrl: imageUrl || null,
+          pushTitle: pushTitle || null,
+          pushMessage: pushMessage || null,
+          ctaUrl: ctaUrl || null,
+          audience: audience || 'ALL',
+          startAt: startAt || null,
+          endAt: endAt || null,
+          active: true
+        });
+        showSuccess('Promoción creada');
+        loadPromotions();
+      } catch (error) {
+        showError(error.message);
+      }
+    });
+
+    function showSuccess(msg) {
+      const el = document.getElementById('errorMessage');
+      el.className = 'bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg mb-4';
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    // Load dashboard on page load
+    loadDashboard();
+  </script>
+</body>
+</html>

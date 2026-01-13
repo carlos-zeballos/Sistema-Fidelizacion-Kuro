@@ -80,8 +80,11 @@ router.post('/register', async (req, res) => {
 
     // Generate QR token
     const qrToken = generateQRToken();
-    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-    const qrUrl = `${baseUrl}/c/${qrToken}`;
+    // Use Railway public domain for QR URLs (backend domain)
+    const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : process.env.BACKEND_URL || 'http://localhost:3000';
+    const qrUrl = `${backendUrl}/c/${qrToken}`;
 
     // Generate QR image
     const qrImageData = await generateQRDataURL(qrUrl);
@@ -240,8 +243,10 @@ router.post('/register', async (req, res) => {
           
           // Generate QR token
           const qrToken = generateQRToken();
-          const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-          const qrUrl = `${baseUrl}/c/${qrToken}`;
+          const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+            ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+            : process.env.BACKEND_URL || 'http://localhost:3000';
+          const qrUrl = `${backendUrl}/c/${qrToken}`;
           
           // Generate QR image
           const qrImageData = await generateQRDataURL(qrUrl);
@@ -489,8 +494,10 @@ router.get('/me', authenticateCustomer, async (req, res) => {
     };
 
     // Build QR URL
-    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-    const qrUrl = `${baseUrl}/c/${customer.qr_token}`;
+    const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : process.env.BACKEND_URL || 'http://localhost:3000';
+    const qrUrl = `${backendUrl}/c/${customer.qr_token}`;
 
     // Generate QR image
     const qrImageData = await generateQRDataURL(qrUrl);

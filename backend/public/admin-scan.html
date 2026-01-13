@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escanear QR - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <style>
+    * { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+    body {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #f5f5f5;
+    }
+    .kuro-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .kuro-button {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      color: #1a1a1a;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .kuro-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(212, 175, 55, 0.3);
+    }
+    #video {
+      width: 100%;
+      max-width: 500px;
+      border-radius: 8px;
+      background: #000;
+      min-height: 300px;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror for better UX */
+    }
+    #scanning-overlay {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      max-width: 500px;
+    }
+    #scanning-overlay::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 250px;
+      height: 250px;
+      border: 4px solid #d4af37;
+      border-radius: 12px;
+      pointer-events: none;
+      z-index: 10;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+      animation: pulse-border 2s ease-in-out infinite;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-color: #d4af37; }
+      50% { border-color: #f4d03f; }
+    }
+    #scanning-overlay::after {
+      content: 'Apunta al código QR';
+      position: absolute;
+      bottom: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #d4af37;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    .camera-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 20px;
+      align-items: center;
+    }
+    .camera-controls .button-group {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      max-width: 500px;
+      justify-content: center;
+    }
+    .camera-controls button {
+      flex: 1;
+      max-width: 200px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    @media (max-width: 640px) {
+      #video {
+        min-height: 250px;
+      }
+    }
+    #canvas {
+      display: none;
+    }
+    .kuro-input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f5f5f5;
+    }
+    .kuro-input:focus {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #d4af37;
+      outline: none;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+</head>
+<body>
+  <div class="container mx-auto px-4 py-8 max-w-2xl">
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+        Escanear QR
+      </h1>
+      <a href="/admin-dashboard.html" class="text-yellow-400 text-sm hover:text-yellow-300 underline">← Volver al Dashboard</a>
+    </div>
+
+    <div id="errorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4"></div>
+    <div id="successMessage" class="hidden bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg mb-4"></div>
+
+    <!-- Manual Input -->
+    <div class="kuro-card rounded-xl p-6 mb-6">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Ingresar Token Manualmente</h2>
+      <div class="flex gap-2">
+        <input type="text" id="manualToken" placeholder="Pega el token QR aquí..."
+               class="flex-1 kuro-input px-4 py-3 rounded-lg">
+        <button id="submitManualBtn" class="kuro-button px-6 py-3 rounded-lg">Procesar</button>
+      </div>
+    </div>
+
+    <!-- Camera Scanner -->
+    <div class="kuro-card rounded-xl p-6">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Escanear con Cámara</h2>
+      <div id="cameraInstructions" class="mb-4 p-3 bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg text-sm text-yellow-200">
+        <p class="font-semibold mb-1">📱 Instrucciones para móvil:</p>
+        <ul class="list-disc list-inside space-y-1 text-xs">
+          <li>Usa HTTPS o la IP local de tu PC (ej: http://192.168.1.100:3000)</li>
+          <li>Permite el acceso a la cámara cuando el navegador lo solicite</li>
+          <li>Usa la cámara trasera para mejor detección</li>
+          <li>Si no funciona, usa el ingreso manual abajo</li>
+        </ul>
+      </div>
+      <div id="cameraWarning" class="hidden mb-4 p-3 bg-red-900 bg-opacity-30 border border-red-700 rounded-lg text-sm text-red-200">
+        <p class="font-semibold">⚠️ Advertencia:</p>
+        <p id="cameraWarningText"></p>
+      </div>
+      <div class="text-center space-y-4">
+        <div id="scanning-overlay" class="mx-auto">
+          <video id="video" autoplay playsinline webkit-playsinline muted class="w-full"></video>
+        </div>
+        <canvas id="canvas"></canvas>
+        
+        <div class="camera-controls">
+          <div class="button-group">
+            <button id="startScanBtn" class="kuro-button rounded-lg">📷 Iniciar Cámara</button>
+            <button id="stopScanBtn" class="bg-gray-600 hover:bg-gray-700 text-white rounded-lg" disabled>⏹️ Detener</button>
+          </div>
+          <div id="cameraStatus" class="text-sm text-gray-400 min-h-[20px]"></div>
+        </div>
+        
+        <div class="mt-4 pt-4 border-t border-gray-700">
+          <button id="toggleDebug" class="text-xs text-gray-400 hover:text-gray-300 underline mb-2">🔧 Mostrar/Ocultar Debug</button>
+          <div id="scanDebug" class="mt-2 text-xs text-gray-500 hidden bg-gray-800 p-3 rounded-lg space-y-1">
+            <div>Estado: <span id="scanState" class="text-yellow-400">Esperando...</span></div>
+            <div>Frames procesados: <span id="frameCount" class="text-yellow-400">0</span></div>
+            <div>Última detección: <span id="lastDetection" class="text-yellow-400">Ninguna</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="resultCard" class="hidden kuro-card rounded-xl p-6 mt-6">
+      <h3 class="text-xl font-bold text-yellow-400 mb-4">Resultado</h3>
+      <div id="resultContent"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getAdminToken, scanQR as scanQRBackend } from '/js/admin.js';
+
+    if (!getAdminToken()) {
+      window.location.href = '/admin-login.html';
+    }
+
+    let stream = null;
+    let scanning = false;
+    let frameCount = 0;
+    let lastDetection = null;
+
+    async function processQRToken(qrToken) {
+      try {
+        hideMessages();
+
+        // Validate token before sending
+        if (!qrToken || qrToken.trim().length === 0) {
+          showError('Token QR inválido o vacío');
+          return;
+        }
+
+        console.log('📤 Enviando token al backend:', qrToken);
+
+        const data = await scanQRBackend(qrToken.trim());
+
+        if (!data.success) {
+          // Show backend error message
+          const errorMsg = data.error || data.message || 'Error al procesar QR';
+          showError(errorMsg);
+          showResult(data.customer || null, false);
+          return;
+        }
+
+        showSuccess(`✅ Punto agregado exitosamente. Cliente: ${data.customer.name}. Total: ${data.points} puntos`);
+        showResult(data.customer, true, data.points);
+      } catch (error) {
+        console.error('Error processing QR:', error);
+        
+        // Extract error message from backend response
+        let errorMsg = 'Error al procesar el QR';
+        
+        if (error.data) {
+          errorMsg = error.data.error || error.data.message || errorMsg;
+        } else if (error.message) {
+          errorMsg = error.message;
+        }
+        
+        // Check if it's a 400 error (antifraud or validation)
+        if (error.status === 400) {
+          showError(errorMsg);
+          // Try to show customer info if available
+          if (error.data && error.data.customer) {
+            showResult(error.data.customer, false);
+          }
+        } else {
+          showError(errorMsg);
+        }
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function showSuccess(msg) {
+      const el = document.getElementById('successMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function hideMessages() {
+      document.getElementById('errorMessage').classList.add('hidden');
+      document.getElementById('successMessage').classList.add('hidden');
+    }
+
+    function showResult(customer, success, points = null) {
+      const card = document.getElementById('resultCard');
+      const content = document.getElementById('resultContent');
+      
+      if (customer) {
+        content.innerHTML = `
+          <div class="p-4 bg-gray-800 rounded-lg">
+            <div class="font-semibold text-lg mb-2">${customer.name}</div>
+            <div class="text-sm text-gray-400">ID: ${customer.id}</div>
+            ${points !== null ? `<div class="text-yellow-400 mt-2">Puntos totales: ${points}</div>` : ''}
+            ${success ? '<div class="text-green-400 mt-2">✅ Punto agregado</div>' : '<div class="text-red-400 mt-2">❌ No se pudo agregar punto</div>'}
+          </div>
+        `;
+      } else {
+        content.innerHTML = '<p class="text-gray-400">No se encontró información del cliente</p>';
+      }
+      
+      card.classList.remove('hidden');
+    }
+
+    // Manual input
+    document.getElementById('submitManualBtn').addEventListener('click', () => {
+      const token = document.getElementById('manualToken').value.trim();
+      if (token) {
+        processQRToken(token);
+      }
+    });
+
+    document.getElementById('manualToken').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('submitManualBtn').click();
+      }
+    });
+
+    // Camera scanner
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Check camera availability on page load
+    window.addEventListener('load', () => {
+      checkCameraAvailability();
+    });
+    
+    function checkCameraAvailability() {
+      const warningEl = document.getElementById('cameraWarning');
+      const warningText = document.getElementById('cameraWarningText');
+      
+      // Check if we're on HTTPS or localhost
+      const isSecure = window.location.protocol === 'https:' || 
+                      window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
+      
+      if (!isSecure) {
+        warningEl.classList.remove('hidden');
+        warningText.textContent = 'La cámara requiere HTTPS. Estás usando HTTP. Algunos navegadores móviles pueden no permitir el acceso a la cámara. Usa el ingreso manual si la cámara no funciona.';
+      }
+      
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        warningEl.classList.remove('hidden');
+        warningText.textContent = 'getUserMedia no está disponible en este navegador. Usa el ingreso manual.';
+      }
+    }
+
+    document.getElementById('startScanBtn').addEventListener('click', async () => {
+      try {
+        hideMessages();
+        updateCameraStatus('Solicitando acceso a la cámara...');
+        
+        // Check if getUserMedia is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('getUserMedia no está disponible. Asegúrate de usar HTTPS o localhost.');
+        }
+        
+        // Request camera access with mobile-friendly constraints
+        const constraints = {
+          video: {
+            facingMode: { ideal: 'environment' }, // Prefer rear camera on mobile
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 }
+          }
+        };
+        
+        // Try to get camera access
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (!stream) {
+          throw new Error('No se pudo obtener el stream de la cámara');
+        }
+        
+        video.srcObject = stream;
+        updateCameraStatus('Cámara activada. Apunta al código QR...');
+        
+        // Wait for video to be ready
+        const startScanning = () => {
+          if (video.readyState >= video.HAVE_METADATA && video.videoWidth > 0) {
+            video.play().then(() => {
+              console.log('✅ Video playing. Starting QR scan loop...');
+              scanning = true;
+              document.getElementById('startScanBtn').disabled = true;
+              document.getElementById('stopScanBtn').disabled = false;
+              updateCameraStatus('Escaneando... Apunta al código QR');
+              // Start scanning loop immediately
+              startQRScanning();
+            }).catch(playError => {
+              console.error('Error playing video:', playError);
+              showError('Error al reproducir el video. Intenta de nuevo.');
+              stopCamera();
+            });
+          } else {
+            // Wait a bit and try again
+            setTimeout(startScanning, 100);
+          }
+        };
+        
+        video.onloadedmetadata = () => {
+          console.log('📹 Video metadata loaded');
+          startScanning();
+        };
+        
+        // Also try to start if video is already ready
+        if (video.readyState >= video.HAVE_METADATA) {
+          startScanning();
+        }
+        
+        video.onerror = (e) => {
+          console.error('Video error:', e);
+          showError('Error con el video. Intenta de nuevo.');
+          stopCamera();
+        };
+        
+        // Handle video play event
+        video.onplaying = () => {
+          console.log('▶️ Video is playing');
+          if (!scanning) {
+            scanning = true;
+            startQRScanning();
+          }
+        };
+        
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        updateCameraStatus('');
+        let errorMsg = 'No se pudo acceder a la cámara. ';
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          errorMsg += 'Por favor, permite el acceso a la cámara en la configuración del navegador.';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+          errorMsg += 'No se encontró ninguna cámara disponible.';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+          errorMsg += 'La cámara está siendo usada por otra aplicación.';
+        } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+          errorMsg += 'La cámara no soporta los requisitos. Intenta con otra cámara.';
+        } else if (error.message && error.message.includes('HTTPS')) {
+          errorMsg += 'Se requiere HTTPS para acceder a la cámara. Usa el ingreso manual.';
+        } else {
+          errorMsg += `Error: ${error.message || error.name}. Usa el ingreso manual.`;
+        }
+        
+        showError(errorMsg);
+        stopCamera();
+      }
+    });
+    
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      if (video.srcObject) {
+        video.srcObject = null;
+      }
+      scanning = false;
+      document.getElementById('startScanBtn').disabled = false;
+      document.getElementById('stopScanBtn').disabled = true;
+      updateCameraStatus('');
+    }
+    
+    function updateCameraStatus(message) {
+      const statusEl = document.getElementById('cameraStatus');
+      if (statusEl) {
+        statusEl.textContent = message;
+      }
+    }
+
+    // Toggle debug info
+    document.getElementById('toggleDebug')?.addEventListener('click', () => {
+      const debugEl = document.getElementById('scanDebug');
+      if (debugEl) {
+        debugEl.classList.toggle('hidden');
+      }
+    });
+
+    function updateDebugInfo() {
+      const stateEl = document.getElementById('scanState');
+      const frameEl = document.getElementById('frameCount');
+      const detectionEl = document.getElementById('lastDetection');
+      
+      if (stateEl) stateEl.textContent = scanning ? 'Escaneando...' : 'Detenido';
+      if (frameEl) frameEl.textContent = frameCount.toString();
+      if (detectionEl) detectionEl.textContent = lastDetection || 'Ninguna';
+    }
+
+    document.getElementById('stopScanBtn').addEventListener('click', () => {
+      stopCamera();
+    });
+
+    function startQRScanning() {
+      // Check if we should continue scanning
+      if (!scanning || !video || !video.srcObject) {
+        return;
+      }
+
+      // Wait for video to have enough data
+      if (video.readyState >= video.HAVE_ENOUGH_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+        frameCount++;
+        updateDebugInfo();
+        
+        // Log scanning status occasionally (not every frame)
+        if (Math.random() < 0.01) { // Log 1% of frames
+          console.log('📹 Escaneando... Video:', video.videoWidth + 'x' + video.videoHeight, 'Frames:', frameCount);
+        }
+        try {
+          // Set canvas dimensions to match video
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+          
+          // Draw current video frame to canvas
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // Get image data
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          
+          // Try to detect QR code with multiple inversion attempts
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth',
+          });
+
+            if (code && code.data) {
+            lastDetection = new Date().toLocaleTimeString();
+            updateDebugInfo();
+            console.log('🔍 QR detectado - Datos completos:', code.data);
+            console.log('🔍 QR detectado - Longitud:', code.data.length);
+            console.log('🔍 QR detectado - Ubicación:', code.location);
+            
+            // Extract token from URL (format: /c/<token> or http://.../c/<token>)
+            const url = code.data.trim();
+            let token = null;
+            
+            console.log('🔍 Procesando URL:', url);
+            
+            // Try multiple patterns to extract token
+            // Pattern 1: Full URL with /c/<token> (http://localhost:3000/c/abc123...)
+            const urlMatch1 = url.match(/\/c\/([a-f0-9]{64})/i);
+            if (urlMatch1 && urlMatch1[1]) {
+              token = urlMatch1[1];
+              console.log('✅ Token extraído con patrón 1 (/c/):', token.substring(0, 16) + '...');
+            }
+            // Pattern 2: c/<token> (without leading slash)
+            else {
+              const urlMatch2 = url.match(/c\/([a-f0-9]{64})/i);
+              if (urlMatch2 && urlMatch2[1]) {
+                token = urlMatch2[1];
+                console.log('✅ Token extraído con patrón 2 (c/):', token.substring(0, 16) + '...');
+              }
+            }
+            
+            // Pattern 3: Direct token (64 hex characters) - just the token itself
+            if (!token && /^[a-f0-9]{64}$/i.test(url)) {
+              token = url;
+              console.log('✅ Token extraído como token directo:', token.substring(0, 16) + '...');
+            }
+            
+            // Pattern 4: Full URL with token anywhere in the string (http://localhost:3000/c/abc123...)
+            if (!token) {
+              // Look for any 64-character hex string in the URL
+              const urlMatch3 = url.match(/([a-f0-9]{64})/i);
+              if (urlMatch3 && urlMatch3[1] && urlMatch3[1].length === 64) {
+                token = urlMatch3[1];
+                console.log('✅ Token extraído con patrón 4 (cualquier 64 hex en URL):', token.substring(0, 16) + '...');
+              }
+            }
+            
+            // Pattern 5: URL with query params or fragments
+            if (!token) {
+              const urlMatch4 = url.match(/[\/\?&#]([a-f0-9]{64})/i);
+              if (urlMatch4 && urlMatch4[1] && urlMatch4[1].length === 64) {
+                token = urlMatch4[1];
+                console.log('✅ Token extraído con patrón 5 (query/fragment):', token.substring(0, 16) + '...');
+              }
+            }
+            
+            // Pattern 6: Try to find token after any slash or colon
+            if (!token) {
+              const urlMatch5 = url.match(/[:\/]([a-f0-9]{64})/i);
+              if (urlMatch5 && urlMatch5[1] && urlMatch5[1].length === 64) {
+                token = urlMatch5[1];
+                console.log('✅ Token extraído con patrón 6 (después de : o /):', token.substring(0, 16) + '...');
+              }
+            }
+            
+            if (token && token.length === 64) {
+              console.log('✅✅✅ Token válido encontrado (64 caracteres):', token.substring(0, 16) + '...');
+              console.log('✅ Token completo (primeros 32 chars):', token.substring(0, 32));
+              updateCameraStatus('QR detectado. Procesando...');
+              // Stop scanning before processing to avoid multiple scans
+              scanning = false;
+              processQRToken(token);
+              // Stop camera after processing
+              setTimeout(() => stopCamera(), 100);
+              return;
+            } else {
+              // Log for debugging
+              console.error('❌ QR detectado pero NO se pudo extraer token válido');
+              console.error('   URL completa:', url);
+              console.error('   Longitud URL:', url.length);
+              console.error('   Token encontrado:', token ? `"${token}" (${token.length} chars)` : 'null');
+              console.error('   Intentando extraer cualquier secuencia de 64 hex...');
+              
+              // Last resort: try to find ANY 64-character hex sequence
+              const allHexMatches = url.match(/[a-f0-9]{64}/gi);
+              if (allHexMatches && allHexMatches.length > 0) {
+                console.log('   Encontradas secuencias hex de 64 chars:', allHexMatches.length);
+                token = allHexMatches[0];
+                console.log('✅ Token encontrado como último recurso:', token.substring(0, 16) + '...');
+                scanning = false;
+                processQRToken(token);
+                setTimeout(() => stopCamera(), 100);
+                return;
+              }
+              
+              // Show error to user
+              showError(`QR detectado pero formato inválido. URL: ${url.substring(0, 80)}${url.length > 80 ? '...' : ''}`);
+              console.error('   No se encontró ninguna secuencia válida de 64 caracteres hex');
+            }
+          } else {
+            // QR not detected - this is normal during scanning, don't log every frame
+          }
+        } catch (error) {
+          console.error('❌ Error en escaneo QR:', error);
+          // Don't stop scanning on error, just log it
+        }
+      } else {
+        // Video not ready yet, wait a bit
+        if (scanning) {
+          setTimeout(() => {
+            if (scanning) startQRScanning();
+          }, 100);
+          return;
+        }
+      }
+
+      // Continue scanning loop - use requestAnimationFrame for smooth scanning
+      if (scanning) {
+        requestAnimationFrame(startQRScanning);
+      }
+    }
+  </script>
+</body>
+</html>

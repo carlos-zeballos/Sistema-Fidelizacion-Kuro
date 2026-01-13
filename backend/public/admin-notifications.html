@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enviar Notificaciones - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <style>
+    * { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+    body {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #f5f5f5;
+    }
+    .kuro-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .kuro-button {
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      color: #1a1a1a;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .kuro-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(212, 175, 55, 0.3);
+    }
+    .kuro-input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f5f5f5;
+    }
+    .kuro-input:focus {
+      outline: none;
+      border-color: #d4af37;
+      box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+          Enviar Notificaciones
+        </h1>
+        <a href="/admin-dashboard.html" class="text-yellow-400 text-sm hover:text-yellow-300 mt-2 inline-block">
+          ← Volver al Dashboard
+        </a>
+      </div>
+      <button id="logoutBtn" class="kuro-button px-4 py-2 rounded-lg text-sm">Cerrar Sesión</button>
+    </div>
+
+    <div id="errorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4"></div>
+    <div id="successMessage" class="hidden bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg mb-4"></div>
+
+    <!-- Notification Form -->
+    <div class="kuro-card rounded-xl p-6 mb-6">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Nueva Notificación</h2>
+
+      <!-- Notification Type -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-yellow-400 mb-2">Tipo de Notificación</label>
+        <div class="flex gap-4">
+          <label class="flex items-center">
+            <input type="radio" name="notificationType" value="promotion" checked class="mr-2">
+            <span>Usar Promoción Existente</span>
+          </label>
+          <label class="flex items-center">
+            <input type="radio" name="notificationType" value="manual" class="mr-2">
+            <span>Mensaje Manual</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Promotion Selection -->
+      <div id="promotionSection" class="mb-4">
+        <label class="block text-sm font-medium text-yellow-400 mb-2">Seleccionar Promoción</label>
+        <select id="promotionSelect" class="kuro-input w-full px-4 py-3 rounded-lg">
+          <option value="">Cargando promociones...</option>
+        </select>
+        <div id="promotionPreview" class="mt-3 p-3 bg-gray-800 rounded-lg hidden">
+          <div class="text-sm text-gray-400 mb-1">Vista Previa:</div>
+          <div class="font-semibold text-yellow-400" id="previewTitle"></div>
+          <div class="text-sm text-gray-300 mt-1" id="previewMessage"></div>
+        </div>
+      </div>
+
+      <!-- Manual Message -->
+      <div id="manualSection" class="hidden mb-4">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-400 mb-2">Título</label>
+          <input type="text" id="manualTitle" placeholder="Título de la notificación"
+                 class="kuro-input w-full px-4 py-3 rounded-lg">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-400 mb-2">Mensaje</label>
+          <textarea id="manualMessage" rows="3" placeholder="Mensaje de la notificación"
+                    class="kuro-input w-full px-4 py-3 rounded-lg"></textarea>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-400 mb-2">URL (opcional)</label>
+          <input type="text" id="manualUrl" placeholder="/dashboard.html"
+                 class="kuro-input w-full px-4 py-3 rounded-lg">
+        </div>
+      </div>
+
+      <!-- Segment Selection -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-yellow-400 mb-2">Segmento de Clientes</label>
+        <select id="segmentSelect" class="kuro-input w-full px-4 py-3 rounded-lg">
+          <option value="all">Todos los suscritos</option>
+          <option value="inactive_36h">Inactivos más de 36 horas</option>
+          <option value="inactive_56h">Inactivos más de 56 horas (obligatoria)</option>
+          <option value="nearby">Cercanos (reportando ubicación actualmente)</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-2" id="segmentDescription">
+          Se enviará a todos los clientes que tengan notificaciones push activadas.
+        </p>
+      </div>
+
+      <!-- Send Button -->
+      <button id="sendNotificationBtn" class="kuro-button w-full py-3 rounded-lg text-lg">
+        Enviar Notificación
+      </button>
+    </div>
+
+    <!-- Recent Notifications Log -->
+    <div class="kuro-card rounded-xl p-6">
+      <h2 class="text-xl font-bold text-yellow-400 mb-4">Historial de Envíos</h2>
+      <div id="notificationsLog" class="space-y-2">
+        <p class="text-gray-400 text-sm">Cargando historial...</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getAdminToken, logout, adminAuthenticatedFetch } from '/js/admin.js';
+
+    if (!getAdminToken()) {
+      window.location.href = '/admin-login.html';
+    }
+
+    let promotions = [];
+
+    function showError(msg) {
+      const el = document.getElementById('errorMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    function showSuccess(msg) {
+      const el = document.getElementById('successMessage');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    // Load promotions
+    async function loadPromotions() {
+      try {
+        const response = await adminAuthenticatedFetch('/api/admin/promotions');
+        if (!response.ok) throw new Error('Failed to load promotions');
+        
+        const data = await response.json();
+        promotions = data.promotions || [];
+        
+        const select = document.getElementById('promotionSelect');
+        select.innerHTML = '<option value="">Selecciona una promoción...</option>';
+        
+        promotions.forEach(promo => {
+          const option = document.createElement('option');
+          option.value = promo.id;
+          option.textContent = promo.title;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading promotions:', error);
+        showError('Error al cargar promociones');
+      }
+    }
+
+    // Update preview when promotion selected
+    document.getElementById('promotionSelect')?.addEventListener('change', (e) => {
+      const promoId = e.target.value;
+      const promo = promotions.find(p => p.id == promoId);
+      const preview = document.getElementById('promotionPreview');
+      
+      if (promo) {
+        document.getElementById('previewTitle').textContent = promo.pushTitle || promo.title;
+        document.getElementById('previewMessage').textContent = promo.pushMessage || promo.description;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+      }
+    });
+
+    // Toggle between promotion and manual
+    document.querySelectorAll('input[name="notificationType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const isManual = e.target.value === 'manual';
+        document.getElementById('promotionSection').classList.toggle('hidden', isManual);
+        document.getElementById('manualSection').classList.toggle('hidden', !isManual);
+      });
+    });
+
+    // Update segment description
+    document.getElementById('segmentSelect')?.addEventListener('change', (e) => {
+      const descriptions = {
+        all: 'Se enviará a todos los clientes que tengan notificaciones push activadas.',
+        inactive_36h: 'Se enviará solo a clientes que no han obtenido puntos en las últimas 36 horas.',
+        inactive_56h: 'Se enviará solo a clientes que no han obtenido puntos en las últimas 56 horas (notificación obligatoria).',
+        nearby: 'Se enviará solo a clientes que están reportando ubicación y están cerca del local (≤1km).'
+      };
+      document.getElementById('segmentDescription').textContent = descriptions[e.target.value] || '';
+    });
+
+    // Send notification
+    document.getElementById('sendNotificationBtn')?.addEventListener('click', async () => {
+      try {
+        const notificationType = document.querySelector('input[name="notificationType"]:checked').value;
+        const segment = document.getElementById('segmentSelect').value;
+        
+        let payload = { segment };
+
+        if (notificationType === 'promotion') {
+          const promoId = document.getElementById('promotionSelect').value;
+          if (!promoId) {
+            showError('Selecciona una promoción');
+            return;
+          }
+          payload.promotionId = parseInt(promoId);
+        } else {
+          const title = document.getElementById('manualTitle').value.trim();
+          const message = document.getElementById('manualMessage').value.trim();
+          const url = document.getElementById('manualUrl').value.trim();
+          
+          if (!title || !message) {
+            showError('Título y mensaje son requeridos');
+            return;
+          }
+          
+          payload.title = title;
+          payload.message = message;
+          if (url) payload.ctaUrl = url;
+        }
+
+        const btn = document.getElementById('sendNotificationBtn');
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
+
+        const response = await adminAuthenticatedFetch('/api/admin/push/send', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Error al enviar notificación');
+        }
+
+        const result = await response.json();
+        showSuccess(`✅ Notificación enviada: ${result.sent} exitosos, ${result.failed} fallidos de ${result.total} total`);
+        
+        // Reset form
+        if (notificationType === 'promotion') {
+          document.getElementById('promotionSelect').value = '';
+          document.getElementById('promotionPreview').classList.add('hidden');
+        } else {
+          document.getElementById('manualTitle').value = '';
+          document.getElementById('manualMessage').value = '';
+          document.getElementById('manualUrl').value = '';
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Enviar Notificación';
+        
+        // Reload log
+        loadNotificationsLog();
+      } catch (error) {
+        console.error('Error sending notification:', error);
+        showError(error.message || 'Error al enviar notificación');
+        document.getElementById('sendNotificationBtn').disabled = false;
+        document.getElementById('sendNotificationBtn').textContent = 'Enviar Notificación';
+      }
+    });
+
+    // Load notifications log (simplified - would need endpoint)
+    async function loadNotificationsLog() {
+      const logContainer = document.getElementById('notificationsLog');
+      logContainer.innerHTML = '<p class="text-gray-400 text-sm">El historial completo se puede consultar en la base de datos.</p>';
+    }
+
+    // Logout
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+      logout();
+    });
+
+    // Initialize
+    loadPromotions();
+    loadNotificationsLog();
+  </script>
+</body>
+</html>

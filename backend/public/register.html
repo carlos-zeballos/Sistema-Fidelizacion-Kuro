@@ -49,13 +49,6 @@
     }
   </style>
   <script>
-    // API Configuration
-    window.API_BASE_URL = window.API_BASE_URL || '';
-    function apiUrl(path) {
-      const cleanPath = path.startsWith('/') ? path : '/' + path;
-      return window.API_BASE_URL + cleanPath;
-    }
-
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/service-worker.js');
     }
@@ -72,12 +65,6 @@
 
     <div class="kuro-card rounded-xl p-6 shadow-2xl">
       <form id="registerForm" class="space-y-4">
-        <div>
-          <label for="fullName" class="block text-sm font-medium text-yellow-400 mb-2">Nombre Completo</label>
-          <input type="text" id="fullName" name="fullName" required
-                 class="kuro-input w-full px-4 py-3 rounded-lg">
-        </div>
-
         <div>
           <label for="fullName" class="block text-sm font-medium text-yellow-400 mb-2">Nombre Completo</label>
           <input type="text" id="fullName" name="fullName" required
@@ -198,7 +185,7 @@
       }
 
       try {
-        const response = await fetch(apiUrl('/api/customers/register'), {
+        const response = await fetch('/api/customers/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
