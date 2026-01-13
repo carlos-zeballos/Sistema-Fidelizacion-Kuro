@@ -178,8 +178,19 @@ router.post('/scan', requireAdmin, async (req, res) => {
       points: loyalty.points || 0
     });
   } catch (error) {
-    console.error('Error scanning QR:', error);
-    res.status(500).json({ error: 'Failed to process QR scan' });
+    console.error('❌ Error scanning QR:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    console.error('   Request body:', req.body);
+    console.error('   Staff ID:', req.adminId);
+    
+    // Return more detailed error for debugging
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to process QR scan',
+      message: error.message || 'Error desconocido al procesar el escaneo',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

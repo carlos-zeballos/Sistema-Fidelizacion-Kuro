@@ -1,6 +1,7 @@
 // Admin-related functions
 
-import { API_BASE_URL } from './config.js';
+// Use window.API_BASE_URL from config.js (loaded in HTML)
+const API = window.API_BASE_URL || '';
 
 /**
  * Get admin token from localStorage
@@ -57,7 +58,7 @@ export async function adminAuthenticatedFetch(url, options = {}) {
     ...options.headers
   };
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(`${API}${url}`, {
     ...options,
     headers
   });
@@ -94,9 +95,19 @@ export async function getDashboardStats() {
  */
 export async function scanQR(qrToken) {
   try {
+    console.log('🔍 scanQR called with token:', qrToken ? `${qrToken.substring(0, 16)}...` : 'null');
+    
+    if (!qrToken || qrToken.trim().length === 0) {
+      throw new Error('Token QR es requerido');
+    }
+    
+    if (qrToken.trim().length !== 64) {
+      throw new Error(`Token QR inválido: debe tener 64 caracteres (tiene ${qrToken.trim().length})`);
+    }
+    
     const response = await adminAuthenticatedFetch('/api/admin/scan', {
       method: 'POST',
-      body: JSON.stringify({ qrToken })
+      body: JSON.stringify({ qrToken: qrToken.trim() })
     });
     
     const data = await response.json();

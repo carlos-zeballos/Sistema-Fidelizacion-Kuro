@@ -44,19 +44,36 @@ router.get('/status', authenticateCustomer, async (req, res) => {
   try {
     const customerId = req.customerId;
 
+    if (!customerId) {
+      return res.status(401).json({ error: 'Customer ID not found' });
+    }
+
     // Check if customer has active push subscription
-    const subscription = await db.getOne(`
-      SELECT id FROM push_subscriptions 
-      WHERE customer_id = ? AND active = 1
-      LIMIT 1
-    `, [customerId]);
+    // Use try-catch for the query in case table doesn't exist or has issues
+    let subscription = null;
+    try {
+      subscription = await db.getOne(`
+        SELECT id FROM push_subscriptions 
+        WHERE customer_id = ? AND active = 1
+        LIMIT 1
+      `, [customerId]);
+    } catch (dbError) {
+      // If table doesn't exist or query fails, assume not subscribed
+      console.warn('Error querying push_subscriptions (table may not exist):', dbError.message);
+      return res.json({ subscribed: false });
+    }
 
     res.json({
       subscribed: !!subscription
     });
   } catch (error) {
+    // If authentication fails, return 401 instead of 500
+    if (error.message && (error.message.includes('Authentication') || error.message.includes('token'))) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     console.error('Error checking push status:', error);
-    res.status(500).json({ error: 'Failed to check push status' });
+    // Return 200 with subscribed: false instead of 500 to prevent frontend errors
+    res.json({ subscribed: false });
   }
 });
 

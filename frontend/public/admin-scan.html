@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <!-- API Configuration - Load before other scripts -->
+  <script src="/config.js"></script>
   <style>
     * { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
     body {
@@ -37,7 +39,7 @@
       background: #000;
       min-height: 300px;
       object-fit: cover;
-      transform: scaleX(-1); /* Mirror for better UX */
+      /* Removed scaleX(-1) to fix inverted camera on mobile */
     }
     #scanning-overlay {
       position: relative;
@@ -212,10 +214,19 @@
           showError('Token QR inválido o vacío');
           return;
         }
+        
+        // Validate token length (should be 64 hex characters)
+        const trimmedToken = qrToken.trim();
+        if (trimmedToken.length !== 64) {
+          showError(`Token QR inválido: longitud incorrecta (${trimmedToken.length} caracteres, esperado 64)`);
+          console.error('❌ Token inválido:', trimmedToken);
+          return;
+        }
 
-        console.log('📤 Enviando token al backend:', qrToken);
+        console.log('📤 Enviando token al backend:', trimmedToken.substring(0, 16) + '...');
+        console.log('📤 Token completo (64 chars):', trimmedToken);
 
-        const data = await scanQRBackend(qrToken.trim());
+        const data = await scanQRBackend(trimmedToken);
 
         if (!data.success) {
           // Show backend error message
